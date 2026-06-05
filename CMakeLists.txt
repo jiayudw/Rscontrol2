@@ -48,6 +48,9 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     Core/Src/main.c
     Core/Src/rs05_motor.c
     Core/Src/motor_thread.c
+    Core/Src/usart.c
+    Core/Src/uart_thread.c
+    Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_uart.c
 )
 
 # Add include paths

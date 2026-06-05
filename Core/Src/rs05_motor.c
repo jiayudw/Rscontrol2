@@ -4,6 +4,7 @@
 
 // 定义电机状态全局变量
 RS05_MotorState_t motor_state;
+volatile MotorState_t motor_states[MOTOR_MAX_COUNT];
 
 // RS05 运动控制参数范围 (依据说明书 4.4 节)
 #define P_MIN  -12.57f
@@ -42,6 +43,20 @@ uint32_t RS05_GetExtId(uint8_t mode, uint16_t data, uint8_t motor_id)
     return ((uint32_t)mode << 24) | ((uint32_t)data << 8) | motor_id;
 }
 
+void RS05_MotorState_InitDefaults(uint8_t id)
+{
+    if (id >= MOTOR_MAX_COUNT) {
+        return;
+    }
+
+    motor_states[id].id = id;
+    motor_states[id].motor_type = MOTOR_TYPE_RS05;
+    motor_states[id].direction = 1.0f;
+    motor_states[id].offset = 0.0f;
+    motor_states[id].lower_limit = P_MIN;
+    motor_states[id].upper_limit = P_MAX;
+}
+
 // 开启电机 (Mode = 3)
 void RS05_Private_Enable(CAN_HandleTypeDef *hcan, uint8_t id)
 {
@@ -57,6 +72,11 @@ void RS05_Private_Enable(CAN_HandleTypeDef *hcan, uint8_t id)
     tx_header.DLC = 8;
     
     HAL_CAN_AddTxMessage(hcan, &tx_header, tx_data, &tx_mailbox);
+
+    if (id < MOTOR_MAX_COUNT) {
+        RS05_MotorState_InitDefaults(id);
+        motor_states[id].is_enabled = 1;
+    }
 }
 
 // 关闭电机 / 停止运行 (Mode = 4)
@@ -74,6 +94,10 @@ void RS05_Private_Disable(CAN_HandleTypeDef *hcan, uint8_t id)
     tx_header.DLC = 8;
 
     HAL_CAN_AddTxMessage(hcan, &tx_header, tx_data, &tx_mailbox);
+
+    if (id < MOTOR_MAX_COUNT) {
+        motor_states[id].is_enabled = 0;
+    }
 }
 
 // 运控模式控制指令 (Mode = 1)
@@ -124,9 +148,36 @@ void RS05_Private_ParseFeedback(uint8_t *rx_data, uint32_t ext_id)
     int p_int = (rx_data[0] << 8) | rx_data[1];
     int v_int = (rx_data[2] << 8) | rx_data[3];
     int t_int = (rx_data[4] << 8) | rx_data[5];
+    int temp_int = (rx_data[6] << 8) | rx_data[7];
+
+    float position = uint_to_float(p_int, P_MIN, P_MAX, 16);
+    float velocity = uint_to_float(v_int, V_MIN, V_MAX, 16);
+    float torque = uint_to_float(t_int, T_MIN, T_MAX, 16);
+    float temperature = (float)temp_int / 10.0f;
 
     motor_state.id = id;
-    motor_state.position = uint_to_float(p_int, P_MIN, P_MAX, 16);
-    motor_state.speed = uint_to_float(v_int, V_MIN, V_MAX, 16);
-    motor_state.torque = uint_to_float(t_int, T_MIN, T_MAX, 16);
+    motor_state.position = position;
+    motor_state.speed = velocity;
+    motor_state.torque = torque;
+    motor_state.temperature = temperature;
+
+    if (id < MOTOR_MAX_COUNT) {
+        volatile MotorState_t *state = &motor_states[id];
+
+        if (state->direction != 1.0f && state->direction != -1.0f) {
+            RS05_MotorState_InitDefaults(id);
+        }
+
+        state->id = id;
+        state->motor_position = position;
+        state->motor_velocity = velocity;
+        state->motor_torque = torque;
+        state->temperature = temperature;
+        state->joint_position = (position - state->offset) * state->direction;
+        state->joint_velocity = velocity * state->direction;
+        state->mode_state = (ext_id >> 22) & 0x03;
+        state->fault_code = (ext_id >> 16) & 0x3F;
+        state->is_valid = 1;
+        state->last_update_ms = HAL_GetTick();
+    }
 }

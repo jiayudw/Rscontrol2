@@ -20,11 +20,13 @@
 #include "main.h"
 #include "can.h"
 #include "gpio.h"
+#include "usart.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "rs05_motor.h"
 #include "motor_thread.h"
+#include "uart_thread.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -89,6 +91,7 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_CAN1_Init();
+  MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
   // 1. 初始化过滤器
   CAN1_Filter_Init();
@@ -101,6 +104,7 @@ int main(void)
 
   uint8_t MOTOR_ID = 0x7F;
   MotorThread_Init(&hcan1, MOTOR_ID);
+  UartThread_Init();
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -110,6 +114,7 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+    UartThread_Run();
     MotorThread_Run10ms();
     HAL_Delay(10); // 控制频率 100Hz
     
