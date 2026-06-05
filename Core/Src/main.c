@@ -23,7 +23,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "rs03_motor.h"
+#include "rs05_motor.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -102,7 +102,7 @@ int main(void)
   
   // 连续发几次使能，确保电机收到
   for(int i = 0; i < 5; i++) {
-      RS03_Private_Enable(&hcan1, MOTOR_ID);
+      RS05_Private_Enable(&hcan1, MOTOR_ID);
       HAL_Delay(10); 
   }
   /* USER CODE END 2 */
@@ -116,9 +116,12 @@ int main(void)
     /* USER CODE BEGIN 3 */
     // 2. 循环发送控制指令 (持续执行)
     // 纯速度模式：kp=0，给定 kd=2.0 阻尼，目标速度 2.0 rad/s
-    RS03_MIT_Control(&hcan1, MOTOR_ID, 0.0f, 0.0f, 2.0f, 0.0f, 2.0f);
+    RS05_Private_Control(&hcan1, MOTOR_ID, 0.0f, 0.0f, 2.0f, 0.0f, 2.0f);
     
-    HAL_Delay(10); // 控制频率 100Hz
+    HAL_Delay(1000); 
+    RS05_Private_Control(&hcan1, MOTOR_ID, 0.0f, 0.0f, 0.0f, 0.0f, 2.0f);
+    HAL_Delay(1000); 
+    
   }
   /* USER CODE END 3 */
 }
