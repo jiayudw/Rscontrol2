@@ -24,6 +24,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "rs05_motor.h"
+#include "motor_thread.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -98,13 +99,8 @@ int main(void)
   // 3. 开启 CAN1 的 FIFO0 接收中断
   HAL_CAN_ActivateNotification(&hcan1, CAN_IT_RX_FIFO0_MSG_PENDING);
 
-  uint8_t MOTOR_ID = 1; 
-  
-  // 连续发几次使能，确保电机收到
-  for(int i = 0; i < 5; i++) {
-      RS05_Private_Enable(&hcan1, MOTOR_ID);
-      HAL_Delay(10); 
-  }
+  uint8_t MOTOR_ID = 0x7F;
+  MotorThread_Init(&hcan1, MOTOR_ID);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -114,13 +110,8 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    // 2. 循环发送控制指令 (持续执行)
-    // 纯速度模式：kp=0，给定 kd=2.0 阻尼，目标速度 2.0 rad/s
-    RS05_Private_Control(&hcan1, MOTOR_ID, 0.0f, 0.0f, 2.0f, 0.0f, 2.0f);
-    
-    HAL_Delay(1000); 
-    RS05_Private_Control(&hcan1, MOTOR_ID, 0.0f, 0.0f, 0.0f, 0.0f, 2.0f);
-    HAL_Delay(1000); 
+    MotorThread_Run10ms();
+    HAL_Delay(10); // 控制频率 100Hz
     
   }
   /* USER CODE END 3 */
