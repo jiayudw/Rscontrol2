@@ -4,10 +4,18 @@
 
 static CAN_HandleTypeDef *motor_hcan = 0;
 
-#define MOTOR0_STARTQ_RAW_RAD 2.487f
+static const float motor_startq_raw_rad[MOTOR_SLOT_COUNT] = {
+    2.487f,
+    0.0f,
+    0.0f,
+    0.0f,
+    0.0f,
+    0.0f,
+    0.0f,
+};
 
-static const MotorConfig_t motor_configs[MOTOR_SLOT_COUNT] = {
-    {0U, 0x7FU, 1U, 1.0f, MOTOR0_STARTQ_RAW_RAD, RS_MOTOR_P_MIN, RS_MOTOR_P_MAX},
+static MotorConfig_t motor_configs[MOTOR_SLOT_COUNT] = {
+    {0U, 0x7FU, 1U, 1.0f, 0.0f, RS_MOTOR_P_MIN, RS_MOTOR_P_MAX},
     {1U, 0x01U, 1U, 1.0f, 0.0f, RS_MOTOR_P_MIN, RS_MOTOR_P_MAX},
     {2U, 0x02U, 1U, 1.0f, 0.0f, RS_MOTOR_P_MIN, RS_MOTOR_P_MAX},
     {3U, 0x03U, 1U, 1.0f, 0.0f, RS_MOTOR_P_MIN, RS_MOTOR_P_MAX},
@@ -15,6 +23,13 @@ static const MotorConfig_t motor_configs[MOTOR_SLOT_COUNT] = {
     {5U, 0x05U, 1U, 1.0f, 0.0f, RS_MOTOR_P_MIN, RS_MOTOR_P_MAX},
     {6U, 0x06U, 0U, 1.0f, 0.0f, RS_MOTOR_P_MIN, RS_MOTOR_P_MAX},
 };
+
+static void MotorThread_ApplyStartqOffsets(void)
+{
+    for (uint8_t i = 0U; i < MOTOR_SLOT_COUNT; ++i) {
+        motor_configs[i].offset = motor_startq_raw_rad[i];
+    }
+}
 
 static int MotorThread_FindIndexByCanId(uint8_t can_id)
 {
@@ -62,6 +77,7 @@ static void MotorThread_EnableAll(void)
 void MotorThread_Init(CAN_HandleTypeDef *hcan)
 {
     motor_hcan = hcan;
+    MotorThread_ApplyStartqOffsets();
     MotorShared_Init(motor_configs, MOTOR_SLOT_COUNT);
 
     if (motor_hcan != 0) {

@@ -129,6 +129,20 @@ joint_position = raw_position - 2.487
 raw_command = joint_command + 2.487
 ```
 
+Edit all seven Startq-style raw zero offsets in `Core/Src/motor_thread.c`:
+
+```c
+static const float motor_startq_raw_rad[MOTOR_SLOT_COUNT] = {
+    2.487f, // slot 0, CAN ID 127
+    0.0f,  // slot 1, CAN ID 1
+    0.0f,  // slot 2, CAN ID 2
+    0.0f,  // slot 3, CAN ID 3
+    0.0f,  // slot 4, CAN ID 4
+    0.0f,  // slot 5, CAN ID 5
+    0.0f,  // slot 6, CAN ID 6
+};
+```
+
 ## UART Debug Commands
 
 Board connector `UART2` maps to STM32 `USART1`.
