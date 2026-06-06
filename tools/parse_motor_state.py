@@ -143,7 +143,7 @@ def previous_state_for_line(line: str, states: dict[int, MotorState]) -> MotorSt
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Parse Rscontrol2 UART motor state output.")
-    parser.add_argument("port", nargs="?", default="/dev/ttyUSB2", help="UART device, default: /dev/ttyUSB2")
+    parser.add_argument("port", nargs="?", default="/dev/ttyUSB0", help="UART device, default: /dev/ttyUSB0")
     parser.add_argument("--baud", type=int, default=115200, help="UART baud rate, default: 115200")
     parser.add_argument("--refresh", type=float, default=0.2, help="screen refresh interval in seconds")
     parser.add_argument("--raw", action="store_true", help="print raw parsed state lines instead of the table")

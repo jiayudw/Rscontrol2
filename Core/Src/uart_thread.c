@@ -1,22 +1,29 @@
 #include "uart_thread.h"
 
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 
 #include "motor_shared.h"
 #include "usart.h"
 
 #define UART_RX_BUFFER_SIZE 128
-#define UART_LINE_BUFFER_SIZE 96
+#define UART_FRAME_HEADER 0xAAU
+#define UART_FRAME_TAIL 0x55U
+#define UART_FRAME_PAYLOAD_SIZE 24U
+#define UART_POSITION_MOTOR_COUNT 6U
+#define UART_COMMAND_SPEED 0.0f
+#define UART_COMMAND_KP 1.1f
+#define UART_COMMAND_KD 0.1f
+#define UART_COMMAND_TORQUE 0.0f
 
 static volatile uint8_t rx_buffer[UART_RX_BUFFER_SIZE];
 static volatile uint16_t rx_head = 0;
 static volatile uint16_t rx_tail = 0;
 static uint8_t rx_byte = 0;
 
-static char line_buffer[UART_LINE_BUFFER_SIZE];
-static uint16_t line_len = 0;
+static uint8_t frame_payload[UART_FRAME_PAYLOAD_SIZE];
+static uint8_t frame_pos = 0U;
+static uint8_t frame_active = 0U;
 
 static int32_t UartThread_FloatToMilli(float value)
 {
@@ -36,57 +43,20 @@ static int32_t UartThread_FloatToDeci(float value)
     return (int32_t)((value * 10.0f) - 0.5f);
 }
 
-static char *UartThread_SkipSpaces(char *text)
+static uint32_t UartThread_ReadLeU32(const uint8_t *data)
 {
-    while (*text == ' ' || *text == '\t') {
-        ++text;
-    }
-
-    return text;
+    return ((uint32_t)data[0]) |
+           ((uint32_t)data[1] << 8) |
+           ((uint32_t)data[2] << 16) |
+           ((uint32_t)data[3] << 24);
 }
 
-static int UartThread_ParseCmd(char *text, uint8_t *index, float *position,
-                               float *speed, float *kp, float *kd, float *torque)
+static float UartThread_ReadLeFloat(const uint8_t *data)
 {
-    char *cursor = UartThread_SkipSpaces(text);
-    char *end = 0;
-    long parsed_index = strtol(cursor, &end, 10);
-
-    if (end != cursor && parsed_index >= 0 && parsed_index < MOTOR_SLOT_COUNT &&
-        (*end == ' ' || *end == '\t')) {
-        *index = (uint8_t)parsed_index;
-        cursor = UartThread_SkipSpaces(end);
-    } else {
-        *index = 0U;
-        cursor = UartThread_SkipSpaces(text);
-    }
-
-    *position = strtof(cursor, &end);
-    if (end == cursor) {
-        return 0;
-    }
-    cursor = UartThread_SkipSpaces(end);
-
-    *speed = strtof(cursor, &end);
-    if (end == cursor) {
-        return 0;
-    }
-    cursor = UartThread_SkipSpaces(end);
-
-    *kp = strtof(cursor, &end);
-    if (end == cursor) {
-        return 0;
-    }
-    cursor = UartThread_SkipSpaces(end);
-
-    *kd = strtof(cursor, &end);
-    if (end == cursor) {
-        return 0;
-    }
-    cursor = UartThread_SkipSpaces(end);
-
-    *torque = strtof(cursor, &end);
-    return end != cursor;
+    uint32_t raw = UartThread_ReadLeU32(data);
+    float value = 0.0f;
+    memcpy(&value, &raw, sizeof(value));
+    return value;
 }
 
 static void UartThread_PushByte(uint8_t data)
@@ -109,20 +79,50 @@ static int UartThread_PopByte(uint8_t *data)
     return 1;
 }
 
-static void UartThread_ParseLine(char *line)
+static void UartThread_ParseFrame(const uint8_t payload[UART_FRAME_PAYLOAD_SIZE])
 {
-    uint8_t index = 0U;
-    float position = 0.0f;
-    float speed = 0.0f;
-    float kp = 0.0f;
-    float kd = 0.0f;
-    float torque = 0.0f;
-
-    if (strncmp(line, "cmd ", 4) == 0) {
-        if (UartThread_ParseCmd(line + 4, &index, &position, &speed, &kp, &kd, &torque)) {
-            MotorShared_SetCommand(index, position, speed, kp, kd, torque);
-        }
+    for (uint8_t i = 0U; i < UART_POSITION_MOTOR_COUNT; ++i) {
+        float position = UartThread_ReadLeFloat(&payload[i * 4U]);
+        MotorShared_SetCommand(
+            i,
+            position,
+            UART_COMMAND_SPEED,
+            UART_COMMAND_KP,
+            UART_COMMAND_KD,
+            UART_COMMAND_TORQUE
+        );
     }
+}
+
+static void UartThread_ProcessByte(uint8_t data)
+{
+    if (!frame_active) {
+        if (data == UART_FRAME_HEADER) {
+            frame_active = 1U;
+            frame_pos = 0U;
+        }
+        return;
+    }
+
+    if (frame_pos < UART_FRAME_PAYLOAD_SIZE) {
+        frame_payload[frame_pos++] = data;
+        return;
+    }
+
+    if (data == UART_FRAME_TAIL) {
+        UartThread_ParseFrame(frame_payload);
+        frame_active = 0U;
+        frame_pos = 0U;
+        return;
+    }
+
+    if (data == UART_FRAME_HEADER) {
+        frame_pos = 0U;
+        return;
+    }
+
+    frame_active = 0U;
+    frame_pos = 0U;
 }
 
 static void UartThread_SendMotorStates(void)
@@ -164,22 +164,7 @@ void UartThread_Run(void)
     uint8_t data = 0;
 
     while (UartThread_PopByte(&data)) {
-        if (data == '\r') {
-            continue;
-        }
-
-        if (data == '\n') {
-            line_buffer[line_len] = '\0';
-            UartThread_ParseLine(line_buffer);
-            line_len = 0;
-            continue;
-        }
-
-        if (line_len < (UART_LINE_BUFFER_SIZE - 1U)) {
-            line_buffer[line_len++] = (char)data;
-        } else {
-            line_len = 0;
-        }
+        UartThread_ProcessByte(data);
     }
 
     UartThread_SendMotorStates();

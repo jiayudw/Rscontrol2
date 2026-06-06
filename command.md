@@ -127,33 +127,30 @@ Board connector `UART2` maps to STM32 `USART1`.
 
 USART1 is configured as `115200 8N1` on `PA9=TX`, `PB7=RX`.
 
-Send newline-terminated ASCII commands:
+Send one fixed-length binary command frame:
 
 ```text
-pos 0.8
-kp 0.5
-kd 0.01
-speed 0.0
-torque 0.0
+0xAA + 24-byte payload + 0x55
 ```
 
-Or set all command values at once:
+Payload is little-endian:
 
 ```text
-cmd 0.8 0.0 0.5 0.01 0.0
+uint32 index
+float32 target_position
+float32 target_speed
+float32 kp
+float32 kd
+float32 target_torque
 ```
 
-The `cmd` field order is:
+Example: set slot 0 to position `0.8` rad:
 
-```text
-target_position target_speed kp kd target_torque
+```bash
+python3 -c 'import struct,sys; sys.stdout.buffer.write(b"\xAA" + struct.pack("<Ifffff", 0, 0.8, 0.0, 0.5, 0.01, 0.0) + b"\x55")' > "$TTY"
 ```
 
-Current firmware also supports an indexed command format:
-
-```text
-cmd index target_position target_speed kp kd target_torque
-```
+The board still transmits motor state as ASCII `state ...` lines.
 
 For slot 0 position tests from `-3` to `3` rad:
 
@@ -161,16 +158,10 @@ For slot 0 position tests from `-3` to `3` rad:
 export TTY=/dev/ttyUSB2
 stty -F "$TTY" 115200 cs8 -cstopb -parenb -ixon -ixoff -crtscts raw
 
-printf "cmd 0 -3.000 0.0 0.5 0.01 0.0\n" > "$TTY"
-printf "cmd 0 -2.333 0.0 0.5 0.01 0.0\n" > "$TTY"
-printf "cmd 0 -1.667 0.0 0.5 0.01 0.0\n" > "$TTY"
-printf "cmd 0 -1.000 0.0 0.5 0.01 0.0\n" > "$TTY"
-printf "cmd 0 -0.333 0.0 0.5 0.01 0.0\n" > "$TTY"
-printf "cmd 0 0.333 0.0 0.5 0.01 0.0\n" > "$TTY"
-printf "cmd 0 1.000 0.0 0.5 0.01 0.0\n" > "$TTY"
-printf "cmd 0 1.667 0.0 0.5 0.01 0.0\n" > "$TTY"
-printf "cmd 0 2.333 0.0 0.5 0.01 0.0\n" > "$TTY"
-printf "cmd 0 3.000 0.0 0.5 0.01 0.0\n" > "$TTY"
+for p in -3.000 -2.333 -1.667 -1.000 -0.333 0.333 1.000 1.667 2.333 3.000; do
+  python3 -c 'import struct,sys; p=float(sys.argv[1]); sys.stdout.buffer.write(b"\xAA" + struct.pack("<Ifffff", 0, p, 0.0, 0.5, 0.01, 0.0) + b"\x55")' "$p" > "$TTY"
+  sleep 0.2
+done
 ```
 
 ## UART Loopback And RX Interrupt Test
@@ -247,7 +238,7 @@ Then send:
 
 ```bash
 stty -F "$TTY" 115200 cs8 -cstopb -parenb -ixon -ixoff -crtscts raw
-printf "pos 0.88\n" > "$TTY"
+python3 -c 'import struct,sys; sys.stdout.buffer.write(b"\xAA" + struct.pack("<Ifffff", 0, 0.88, 0.0, 0.5, 0.01, 0.0) + b"\x55")' > "$TTY"
 ```
 
 Check with GDB:
@@ -274,7 +265,7 @@ detach
 quit
 ```
 
-Expected after a valid `pos 0.88` command:
+Expected after a valid binary command frame:
 
 ```text
 g_debug_target_position = 0.88
@@ -316,7 +307,7 @@ Terminal 3, send bytes:
 ```bash
 export TTY=/dev/ttyUSB2
 stty -F "$TTY" 115200 cs8 -cstopb -parenb -ixon -ixoff -crtscts raw
-printf "pos 0.88\n" > "$TTY"
+python3 -c 'import struct,sys; sys.stdout.buffer.write(b"\xAA" + struct.pack("<Ifffff", 0, 0.88, 0.0, 0.5, 0.01, 0.0) + b"\x55")' > "$TTY"
 ```
 
 Back in GDB, press `Ctrl-C`, then:

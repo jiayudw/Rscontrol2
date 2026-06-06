@@ -27,29 +27,35 @@ Main loop path:
 
 ```text
 UartThread_Run()
-  -> parse newline-terminated ASCII command
+  -> parse binary command frame
   -> update g_debug_target_position / speed / kp / kd / torque
   -> MotorThread_Run10ms()
-  -> RS05_Private_Control(...)
+  -> RS_Motor_BuildControlFrame(...)
 ```
 
 ## Current UART Commands
 
-Supported newline-terminated commands:
+Supported RX command frame:
 
 ```text
-pos 0.8
-kp 0.5
-kd 0.01
-speed 0.0
-torque 0.0
-cmd 0.8 0.0 0.5 0.01 0.0
+0xAA + 24-byte payload + 0x55
 ```
 
-`cmd` field order:
+Payload is little-endian:
 
 ```text
-target_position target_speed kp kd target_torque
+uint32 index
+float32 target_position
+float32 target_speed
+float32 kp
+float32 kd
+float32 target_torque
+```
+
+Example:
+
+```bash
+python3 -c 'import struct,sys; sys.stdout.buffer.write(b"\xAA" + struct.pack("<Ifffff", 0, 0.88, 0.0, 0.5, 0.01, 0.0) + b"\x55")' > /dev/ttyUSB2
 ```
 
 ## Confirmed Working
@@ -89,7 +95,7 @@ Sending commands from PC to board has not changed the motor target.
 Test command sent:
 
 ```bash
-printf "pos 0.88\n" > /dev/ttyUSB2
+python3 -c 'import struct,sys; sys.stdout.buffer.write(b"\xAA" + struct.pack("<Ifffff", 0, 0.88, 0.0, 0.5, 0.01, 0.0) + b"\x55")' > /dev/ttyUSB2
 ```
 
 GDB result after sending:
