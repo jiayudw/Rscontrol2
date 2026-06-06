@@ -52,6 +52,8 @@ typedef struct {
 
 extern volatile MotorCommand_t g_motor_commands[MOTOR_SLOT_COUNT];
 extern volatile MotorState_t g_motor_states[MOTOR_SLOT_COUNT];
+extern volatile float g_motor_zero_offsets[MOTOR_SLOT_COUNT];
+extern volatile uint8_t g_motor_calibration_mode;
 
 extern volatile float g_debug_target_position;
 extern volatile float g_debug_target_speed;
@@ -61,6 +63,7 @@ extern volatile float g_debug_kd;
 
 void MotorShared_Init(const MotorConfig_t *configs, uint8_t count);
 int MotorShared_SetCommand(uint8_t index, float position, float speed, float kp, float kd, float torque);
+void MotorShared_SetCalibrationMode(uint8_t enabled);
 
 #ifdef __cplusplus
 }

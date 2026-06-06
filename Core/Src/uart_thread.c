@@ -8,13 +8,20 @@
 
 #define UART_RX_BUFFER_SIZE 128
 #define UART_FRAME_HEADER 0xAAU
+#define UART_CONTROL_HEADER 0xABU
 #define UART_FRAME_TAIL 0x55U
 #define UART_FRAME_PAYLOAD_SIZE 24U
+#define UART_CONTROL_PAYLOAD_SIZE 1U
 #define UART_POSITION_MOTOR_COUNT 6U
 #define UART_COMMAND_SPEED 0.0f
 #define UART_COMMAND_KP 1.1f
 #define UART_COMMAND_KD 0.1f
 #define UART_COMMAND_TORQUE 0.0f
+#define UART_FRAME_TYPE_NONE 0U
+#define UART_FRAME_TYPE_POSITION 1U
+#define UART_FRAME_TYPE_CONTROL 2U
+#define UART_CONTROL_NORMAL_MODE 0U
+#define UART_CONTROL_CALIBRATION_MODE 1U
 
 static volatile uint8_t rx_buffer[UART_RX_BUFFER_SIZE];
 static volatile uint16_t rx_head = 0;
@@ -23,7 +30,7 @@ static uint8_t rx_byte = 0;
 
 static uint8_t frame_payload[UART_FRAME_PAYLOAD_SIZE];
 static uint8_t frame_pos = 0U;
-static uint8_t frame_active = 0U;
+static uint8_t frame_type = UART_FRAME_TYPE_NONE;
 
 static int32_t UartThread_FloatToMilli(float value)
 {
@@ -94,52 +101,83 @@ static void UartThread_ParseFrame(const uint8_t payload[UART_FRAME_PAYLOAD_SIZE]
     }
 }
 
+static void UartThread_ParseControlFrame(uint8_t mode)
+{
+    if (mode == UART_CONTROL_CALIBRATION_MODE) {
+        MotorShared_SetCalibrationMode(1U);
+        return;
+    }
+
+    if (mode == UART_CONTROL_NORMAL_MODE) {
+        MotorShared_SetCalibrationMode(0U);
+    }
+}
+
 static void UartThread_ProcessByte(uint8_t data)
 {
-    if (!frame_active) {
+    if (frame_type == UART_FRAME_TYPE_NONE) {
         if (data == UART_FRAME_HEADER) {
-            frame_active = 1U;
+            frame_type = UART_FRAME_TYPE_POSITION;
+            frame_pos = 0U;
+        } else if (data == UART_CONTROL_HEADER) {
+            frame_type = UART_FRAME_TYPE_CONTROL;
             frame_pos = 0U;
         }
         return;
     }
 
-    if (frame_pos < UART_FRAME_PAYLOAD_SIZE) {
+    uint8_t payload_size = (frame_type == UART_FRAME_TYPE_POSITION) ?
+        UART_FRAME_PAYLOAD_SIZE : UART_CONTROL_PAYLOAD_SIZE;
+
+    if (frame_pos < payload_size) {
         frame_payload[frame_pos++] = data;
         return;
     }
 
     if (data == UART_FRAME_TAIL) {
-        UartThread_ParseFrame(frame_payload);
-        frame_active = 0U;
+        if (frame_type == UART_FRAME_TYPE_POSITION) {
+            UartThread_ParseFrame(frame_payload);
+        } else if (frame_type == UART_FRAME_TYPE_CONTROL) {
+            UartThread_ParseControlFrame(frame_payload[0]);
+        }
+        frame_type = UART_FRAME_TYPE_NONE;
         frame_pos = 0U;
         return;
     }
 
     if (data == UART_FRAME_HEADER) {
+        frame_type = UART_FRAME_TYPE_POSITION;
         frame_pos = 0U;
         return;
     }
 
-    frame_active = 0U;
+    if (data == UART_CONTROL_HEADER) {
+        frame_type = UART_FRAME_TYPE_CONTROL;
+        frame_pos = 0U;
+        return;
+    }
+
+    frame_type = UART_FRAME_TYPE_NONE;
     frame_pos = 0U;
 }
 
 static void UartThread_SendMotorStates(void)
 {
-    char text[128];
+    char text[192];
 
     for (uint8_t i = 0; i < MOTOR_SLOT_COUNT; ++i) {
         volatile MotorState_t *state = &g_motor_states[i];
         int len = snprintf(
             text,
             sizeof(text),
-            "state %u id %u en %u valid %u p_mrad %ld v_mrad_s %ld tau_mNm %ld temp_c10 %ld\r\n",
+            "state %u id %u en %u valid %u mode %u p_mrad %ld raw_mrad %ld v_mrad_s %ld tau_mNm %ld temp_c10 %ld\r\n",
             (unsigned int)i,
             (unsigned int)state->can_id,
             (unsigned int)state->is_enabled,
             (unsigned int)state->is_valid,
+            (unsigned int)g_motor_calibration_mode,
             (long)UartThread_FloatToMilli(state->joint_position),
+            (long)UartThread_FloatToMilli(state->motor_position),
             (long)UartThread_FloatToMilli(state->joint_velocity),
             (long)UartThread_FloatToMilli(state->motor_torque),
             (long)UartThread_FloatToDeci(state->temperature)

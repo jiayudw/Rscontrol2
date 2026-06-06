@@ -4,8 +4,10 @@
 
 static CAN_HandleTypeDef *motor_hcan = 0;
 
+#define MOTOR0_STARTQ_RAW_RAD 2.487f
+
 static const MotorConfig_t motor_configs[MOTOR_SLOT_COUNT] = {
-    {0U, 0x00U, 1U, 1.0f, 0.0f, RS_MOTOR_P_MIN, RS_MOTOR_P_MAX},
+    {0U, 0x7FU, 1U, 1.0f, MOTOR0_STARTQ_RAW_RAD, RS_MOTOR_P_MIN, RS_MOTOR_P_MAX},
     {1U, 0x01U, 1U, 1.0f, 0.0f, RS_MOTOR_P_MIN, RS_MOTOR_P_MAX},
     {2U, 0x02U, 1U, 1.0f, 0.0f, RS_MOTOR_P_MIN, RS_MOTOR_P_MAX},
     {3U, 0x03U, 1U, 1.0f, 0.0f, RS_MOTOR_P_MIN, RS_MOTOR_P_MAX},
@@ -89,17 +91,21 @@ void MotorThread_Run10ms(void)
             continue;
         }
 
-        float motor_position = command->target_position * config->direction + config->offset;
-        float motor_speed = command->target_speed * config->direction;
-        float motor_torque = command->target_torque * config->direction;
+        float offset = g_motor_zero_offsets[i];
+        float target_position = g_motor_calibration_mode ? 0.0f : command->target_position;
+        float motor_position = target_position * config->direction + offset;
+        float motor_speed = g_motor_calibration_mode ? 0.0f : command->target_speed * config->direction;
+        float motor_torque = g_motor_calibration_mode ? 0.0f : command->target_torque * config->direction;
+        float kp = g_motor_calibration_mode ? 0.0f : command->kp;
+        float kd = g_motor_calibration_mode ? 0.0f : command->kd;
 
         RS_Motor_BuildControlFrame(
             config->can_id,
             motor_torque,
             motor_position,
             motor_speed,
-            command->kp,
-            command->kd,
+            kp,
+            kd,
             &header,
             data
         );
@@ -123,6 +129,8 @@ void MotorThread_OnCanFeedback(uint32_t ext_id, uint8_t data[8])
     const MotorConfig_t *config = &motor_configs[index];
     volatile MotorState_t *state = &g_motor_states[index];
 
+    float joint_position = (feedback.position - g_motor_zero_offsets[index]) * config->direction;
+
     state->index = (uint8_t)index;
     state->can_id = feedback.can_id;
     state->motor_type = MOTOR_TYPE_RS;
@@ -130,7 +138,7 @@ void MotorThread_OnCanFeedback(uint32_t ext_id, uint8_t data[8])
     state->motor_velocity = feedback.velocity;
     state->motor_torque = feedback.torque;
     state->temperature = feedback.temperature;
-    state->joint_position = (feedback.position - config->offset) * config->direction;
+    state->joint_position = joint_position;
     state->joint_velocity = feedback.velocity * config->direction;
     state->mode_state = feedback.mode_state;
     state->fault_code = feedback.fault_code;

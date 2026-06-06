@@ -2,6 +2,8 @@
 
 volatile MotorCommand_t g_motor_commands[MOTOR_SLOT_COUNT];
 volatile MotorState_t g_motor_states[MOTOR_SLOT_COUNT];
+volatile float g_motor_zero_offsets[MOTOR_SLOT_COUNT];
+volatile uint8_t g_motor_calibration_mode = 0U;
 
 volatile float g_debug_target_position = 0.0f;
 volatile float g_debug_target_speed = 0.0f;
@@ -18,6 +20,7 @@ void MotorShared_Init(const MotorConfig_t *configs, uint8_t count)
         g_motor_commands[i].kp = 0.5f;
         g_motor_commands[i].kd = 0.5f;
         g_motor_commands[i].enabled = 0U;
+        g_motor_zero_offsets[i] = 0.0f;
 
         g_motor_states[i].index = i;
         g_motor_states[i].can_id = 0U;
@@ -50,6 +53,7 @@ void MotorShared_Init(const MotorConfig_t *configs, uint8_t count)
         }
 
         g_motor_commands[index].enabled = configs[i].enabled;
+        g_motor_zero_offsets[index] = configs[i].offset;
         g_motor_states[index].can_id = configs[i].can_id;
         g_motor_states[index].is_enabled = configs[i].enabled;
     }
@@ -76,4 +80,15 @@ int MotorShared_SetCommand(uint8_t index, float position, float speed, float kp,
     }
 
     return 1;
+}
+
+void MotorShared_SetCalibrationMode(uint8_t enabled)
+{
+    g_motor_calibration_mode = enabled ? 1U : 0U;
+
+    for (uint8_t i = 0; i < MOTOR_SLOT_COUNT; ++i) {
+        g_motor_commands[i].target_position = 0.0f;
+        g_motor_commands[i].target_speed = 0.0f;
+        g_motor_commands[i].target_torque = 0.0f;
+    }
 }

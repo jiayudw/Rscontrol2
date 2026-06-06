@@ -99,26 +99,34 @@ set var g_debug_target_torque = 0.0f
 
 ## Inspect Motor State With GDB
 
-The current firmware stores feedback in `motor_states[id]`. The current test motor ID is `0x7F`, so use index `127`:
+The current firmware stores feedback by slot index, not by CAN ID. Slot 0 currently maps to CAN ID `0x7F` / `127`, so inspect `g_motor_states[0]`:
 
 ```gdb
-print motor_states[127]
-print motor_states[127].motor_position
-print motor_states[127].motor_velocity
-print motor_states[127].motor_torque
-print motor_states[127].temperature
-print motor_states[127].joint_position
-print motor_states[127].mode_state
-print motor_states[127].fault_code
-print motor_states[127].is_valid
-print motor_states[127].last_update_ms
+print g_motor_states[0]
+print g_motor_states[0].motor_position
+print g_motor_states[0].motor_velocity
+print g_motor_states[0].motor_torque
+print g_motor_states[0].temperature
+print g_motor_states[0].joint_position
+print g_motor_states[0].mode_state
+print g_motor_states[0].fault_code
+print g_motor_states[0].is_valid
+print g_motor_states[0].last_update_ms
 ```
 
-You can change calibration mapping live:
+You can inspect the active zero offset:
 
 ```gdb
-set variable motor_states[127].direction = -1.0
-set variable motor_states[127].offset = 0.2
+print g_motor_zero_offsets[0]
+print g_motor_calibration_mode
+```
+
+Slot 0 / CAN ID `127` currently uses a Startq-style raw zero offset:
+
+```text
+g_motor_zero_offsets[0] = 2.487 rad
+joint_position = raw_position - 2.487
+raw_command = joint_command + 2.487
 ```
 
 ## UART Debug Commands
@@ -136,32 +144,150 @@ Send one fixed-length binary command frame:
 Payload is little-endian:
 
 ```text
-uint32 index
-float32 target_position
-float32 target_speed
-float32 kp
-float32 kd
-float32 target_torque
+float32 slot0_position_rad
+float32 slot1_position_rad
+float32 slot2_position_rad
+float32 slot3_position_rad
+float32 slot4_position_rad
+float32 slot5_position_rad
 ```
 
-Example: set slot 0 to position `0.8` rad:
+Current slot-to-CAN-ID mapping:
 
-```bash
-python3 -c 'import struct,sys; sys.stdout.buffer.write(b"\xAA" + struct.pack("<Ifffff", 0, 0.8, 0.0, 0.5, 0.01, 0.0) + b"\x55")' > "$TTY"
+```text
+slot 0 -> CAN ID 127 / 0x7F
+slot 1 -> CAN ID 1
+slot 2 -> CAN ID 2
+slot 3 -> CAN ID 3
+slot 4 -> CAN ID 4
+slot 5 -> CAN ID 5
 ```
 
-The board still transmits motor state as ASCII `state ...` lines.
+The firmware applies fixed control parameters to all six received positions:
 
-For slot 0 position tests from `-3` to `3` rad:
+```text
+speed = 0.0 rad/s
+kp = 1.1
+kd = 0.1
+torque = 0.0 Nm
+```
+
+Configure the UART port:
 
 ```bash
 export TTY=/dev/ttyUSB2
 stty -F "$TTY" 115200 cs8 -cstopb -parenb -ixon -ixoff -crtscts raw
+```
 
-for p in -3.000 -2.333 -1.667 -1.000 -0.333 0.333 1.000 1.667 2.333 3.000; do
-  python3 -c 'import struct,sys; p=float(sys.argv[1]); sys.stdout.buffer.write(b"\xAA" + struct.pack("<Ifffff", 0, p, 0.0, 0.5, 0.01, 0.0) + b"\x55")' "$p" > "$TTY"
+Example: set only slot 0 / CAN ID 127 to position `0.8` rad, and command slots 1-5 to `0.0` rad:
+
+```bash
+python3 -c 'import struct,sys; p0=float(sys.argv[1]); sys.stdout.buffer.write(b"\xAA" + struct.pack("<ffffff", p0, 0.0, 0.0, 0.0, 0.0, 0.0) + b"\x55")' 0.8 > "$TTY"
+```
+
+Example: command all six slots in one frame:
+
+```bash
+python3 -c 'import struct,sys; vals=[float(v) for v in sys.argv[1:7]]; sys.stdout.buffer.write(b"\xAA" + struct.pack("<ffffff", *vals) + b"\x55")' \
+  0.8 0.1 0.2 0.3 0.4 0.5 > "$TTY"
+```
+
+Example: return all six slots to zero:
+
+```bash
+python3 -c 'import struct,sys; sys.stdout.buffer.write(b"\xAA" + struct.pack("<ffffff", 0.0, 0.0, 0.0, 0.0, 0.0, 0.0) + b"\x55")' > "$TTY"
+```
+
+Example: sweep slot 0 / CAN ID 127 from `-1.0` to `1.0` rad while holding slots 1-5 at zero:
+
+```bash
+for p in -1.000 -0.750 -0.500 -0.250 0.000 0.250 0.500 0.750 1.000; do
+  python3 -c 'import struct,sys; p0=float(sys.argv[1]); sys.stdout.buffer.write(b"\xAA" + struct.pack("<ffffff", p0, 0.0, 0.0, 0.0, 0.0, 0.0) + b"\x55")' "$p" > "$TTY"
   sleep 0.2
 done
+```
+
+Example: send a smooth sine command to slot 0 / CAN ID 127 at 50 Hz:
+
+```bash
+python3 - <<'PY' > "$TTY"
+import math
+import struct
+import sys
+import time
+
+for step in range(250):
+    p0 = 0.5 * math.sin(step * 0.04)
+    sys.stdout.buffer.write(b"\xAA" + struct.pack("<ffffff", p0, 0.0, 0.0, 0.0, 0.0, 0.0) + b"\x55")
+    sys.stdout.buffer.flush()
+    time.sleep(0.02)
+PY
+```
+
+The board still transmits motor state as ASCII `state ...` lines.
+
+```bash
+python3 tools/parse_motor_state.py "$TTY" --raw
+```
+
+## UART Calibration Mode
+
+Calibration mode uses a separate short control frame:
+
+```text
+0xAB + mode + 0x55
+```
+
+Modes:
+
+```text
+0x01 -> enter calibration mode
+0x00 -> return to normal position mode
+```
+
+Slot 0 / CAN ID `127` uses a fixed Startq-style raw zero offset of `2.487 rad`. Calibration mode does not overwrite that offset; it is only a zero-force raw-data monitor. While calibration mode is active:
+
+```text
+commanded joint position = 0.0
+commanded kp = 0.0
+commanded kd = 0.0
+commanded torque = 0.0
+reported p_mrad = current joint position from the STM32
+reported raw_mrad = current raw motor position
+mode = 1
+```
+
+Enter zero-force calibration mode and watch raw data on `/dev/ttyUSB2`:
+
+```bash
+export TTY=/dev/ttyUSB2
+python3 tools/parse_motor_state.py "$TTY" --enter-calibration --raw-table
+```
+
+The command above sends `0xAB 0x01 0x55`, then opens a live raw-position monitor. In calibration mode, `joint_rad` is parsed from the STM32 `p_mrad` field, `raw_rad` shows the current raw motor position, and the motor command uses zero force gains.
+
+Watch raw state lines instead of the table:
+
+```bash
+python3 tools/parse_motor_state.py "$TTY" --enter-calibration --raw
+```
+
+Expected state lines in calibration mode:
+
+```text
+state 0 id 127 en 1 valid 1 mode 1 p_mrad <current_joint> raw_mrad <current_raw> ...
+```
+
+Return to normal position mode:
+
+```bash
+python3 tools/parse_motor_state.py "$TTY" --exit-calibration --send-only
+```
+
+After returning to normal mode, slot 0 commands are interpreted relative to the fixed `2.487 rad` Startq offset:
+
+```bash
+python3 -c 'import struct,sys; sys.stdout.buffer.write(b"\xAA" + struct.pack("<ffffff", 0.5, 0.0, 0.0, 0.0, 0.0, 0.0) + b"\x55")' > "$TTY"
 ```
 
 ## UART Loopback And RX Interrupt Test
@@ -238,7 +364,7 @@ Then send:
 
 ```bash
 stty -F "$TTY" 115200 cs8 -cstopb -parenb -ixon -ixoff -crtscts raw
-python3 -c 'import struct,sys; sys.stdout.buffer.write(b"\xAA" + struct.pack("<Ifffff", 0, 0.88, 0.0, 0.5, 0.01, 0.0) + b"\x55")' > "$TTY"
+python3 -c 'import struct,sys; sys.stdout.buffer.write(b"\xAA" + struct.pack("<ffffff", 0.88, 0.0, 0.0, 0.0, 0.0, 0.0) + b"\x55")' > "$TTY"
 ```
 
 Check with GDB:
@@ -307,7 +433,7 @@ Terminal 3, send bytes:
 ```bash
 export TTY=/dev/ttyUSB2
 stty -F "$TTY" 115200 cs8 -cstopb -parenb -ixon -ixoff -crtscts raw
-python3 -c 'import struct,sys; sys.stdout.buffer.write(b"\xAA" + struct.pack("<Ifffff", 0, 0.88, 0.0, 0.5, 0.01, 0.0) + b"\x55")' > "$TTY"
+python3 -c 'import struct,sys; sys.stdout.buffer.write(b"\xAA" + struct.pack("<ffffff", 0.88, 0.0, 0.0, 0.0, 0.0, 0.0) + b"\x55")' > "$TTY"
 ```
 
 Back in GDB, press `Ctrl-C`, then:
