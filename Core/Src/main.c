@@ -24,7 +24,6 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "rs05_motor.h"
 #include "motor_thread.h"
 #include "uart_thread.h"
 /* USER CODE END Includes */
@@ -102,9 +101,10 @@ int main(void)
   // 3. 开启 CAN1 的 FIFO0 接收中断
   HAL_CAN_ActivateNotification(&hcan1, CAN_IT_RX_FIFO0_MSG_PENDING);
 
-  uint8_t MOTOR_ID = 0x7F;
-  MotorThread_Init(&hcan1, MOTOR_ID);
+  MotorThread_Init(&hcan1);
   UartThread_Init();
+  uint32_t last_uart_ms = HAL_GetTick();
+  uint32_t last_motor_ms = HAL_GetTick();
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -114,9 +114,19 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    UartThread_Run();
-    MotorThread_Run10ms();
-    HAL_Delay(10); // 控制频率 100Hz
+    uint32_t now = HAL_GetTick();
+
+    if ((now - last_uart_ms) >= UART_THREAD_PERIOD_MS) {
+      UartThread_Run();
+      last_uart_ms += UART_THREAD_PERIOD_MS;
+    }
+
+    if ((now - last_motor_ms) >= MOTOR_THREAD_PERIOD_MS) {
+      MotorThread_Run10ms();
+      last_motor_ms += MOTOR_THREAD_PERIOD_MS;
+    }
+
+    HAL_Delay(1);
     
   }
   /* USER CODE END 3 */

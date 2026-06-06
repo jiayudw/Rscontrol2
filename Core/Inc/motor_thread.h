@@ -2,29 +2,19 @@
 #define __MOTOR_THREAD_H
 
 #include "main.h"
+#include "motor_shared.h"
+
+#define MOTOR_THREAD_HZ 100U
+#define MOTOR_THREAD_PERIOD_MS (1000U / MOTOR_THREAD_HZ)
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef struct {
-    uint8_t motor_id;
-    float target_position;
-    float target_speed;
-    float target_torque;
-    float kp;
-    float kd;
-} MotorThreadCommand_t;
-
-extern volatile float g_debug_target_position;
-extern volatile float g_debug_target_speed;
-extern volatile float g_debug_target_torque;
-extern volatile float g_debug_kp;
-extern volatile float g_debug_kd;
-
-void MotorThread_Init(CAN_HandleTypeDef *hcan, uint8_t motor_id);
+void MotorThread_Init(CAN_HandleTypeDef *hcan);
 void MotorThread_Run10ms(void);
-void MotorThread_SetTarget(float position, float speed, float kp, float kd, float torque);
+void MotorThread_OnCanFeedback(uint32_t ext_id, uint8_t data[8]);
+uint8_t MotorThread_GetMotorCount(void);
 
 #ifdef __cplusplus
 }

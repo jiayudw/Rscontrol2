@@ -1,9 +1,10 @@
 #include "uart_thread.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include "motor_thread.h"
+#include "motor_shared.h"
 #include "usart.h"
 
 #define UART_RX_BUFFER_SIZE 128
@@ -16,7 +17,77 @@ static uint8_t rx_byte = 0;
 
 static char line_buffer[UART_LINE_BUFFER_SIZE];
 static uint16_t line_len = 0;
-static uint32_t last_hello_ms = 0;
+
+static int32_t UartThread_FloatToMilli(float value)
+{
+    if (value >= 0.0f) {
+        return (int32_t)((value * 1000.0f) + 0.5f);
+    }
+
+    return (int32_t)((value * 1000.0f) - 0.5f);
+}
+
+static int32_t UartThread_FloatToDeci(float value)
+{
+    if (value >= 0.0f) {
+        return (int32_t)((value * 10.0f) + 0.5f);
+    }
+
+    return (int32_t)((value * 10.0f) - 0.5f);
+}
+
+static char *UartThread_SkipSpaces(char *text)
+{
+    while (*text == ' ' || *text == '\t') {
+        ++text;
+    }
+
+    return text;
+}
+
+static int UartThread_ParseCmd(char *text, uint8_t *index, float *position,
+                               float *speed, float *kp, float *kd, float *torque)
+{
+    char *cursor = UartThread_SkipSpaces(text);
+    char *end = 0;
+    long parsed_index = strtol(cursor, &end, 10);
+
+    if (end != cursor && parsed_index >= 0 && parsed_index < MOTOR_SLOT_COUNT &&
+        (*end == ' ' || *end == '\t')) {
+        *index = (uint8_t)parsed_index;
+        cursor = UartThread_SkipSpaces(end);
+    } else {
+        *index = 0U;
+        cursor = UartThread_SkipSpaces(text);
+    }
+
+    *position = strtof(cursor, &end);
+    if (end == cursor) {
+        return 0;
+    }
+    cursor = UartThread_SkipSpaces(end);
+
+    *speed = strtof(cursor, &end);
+    if (end == cursor) {
+        return 0;
+    }
+    cursor = UartThread_SkipSpaces(end);
+
+    *kp = strtof(cursor, &end);
+    if (end == cursor) {
+        return 0;
+    }
+    cursor = UartThread_SkipSpaces(end);
+
+    *kd = strtof(cursor, &end);
+    if (end == cursor) {
+        return 0;
+    }
+    cursor = UartThread_SkipSpaces(end);
+
+    *torque = strtof(cursor, &end);
+    return end != cursor;
+}
 
 static void UartThread_PushByte(uint8_t data)
 {
@@ -40,59 +111,57 @@ static int UartThread_PopByte(uint8_t *data)
 
 static void UartThread_ParseLine(char *line)
 {
-    char *arg = 0;
-
-    if (strncmp(line, "pos ", 4) == 0) {
-        g_debug_target_position = strtof(line + 4, 0);
-        return;
-    }
-
-    if (strncmp(line, "kp ", 3) == 0) {
-        g_debug_kp = strtof(line + 3, 0);
-        return;
-    }
-
-    if (strncmp(line, "kd ", 3) == 0) {
-        g_debug_kd = strtof(line + 3, 0);
-        return;
-    }
-
-    if (strncmp(line, "speed ", 6) == 0) {
-        g_debug_target_speed = strtof(line + 6, 0);
-        return;
-    }
-
-    if (strncmp(line, "torque ", 7) == 0) {
-        g_debug_target_torque = strtof(line + 7, 0);
-        return;
-    }
+    uint8_t index = 0U;
+    float position = 0.0f;
+    float speed = 0.0f;
+    float kp = 0.0f;
+    float kd = 0.0f;
+    float torque = 0.0f;
 
     if (strncmp(line, "cmd ", 4) == 0) {
-        arg = line + 4;
-        g_debug_target_position = strtof(arg, &arg);
-        g_debug_target_speed = strtof(arg, &arg);
-        g_debug_kp = strtof(arg, &arg);
-        g_debug_kd = strtof(arg, &arg);
-        g_debug_target_torque = strtof(arg, &arg);
+        if (UartThread_ParseCmd(line + 4, &index, &position, &speed, &kp, &kd, &torque)) {
+            MotorShared_SetCommand(index, position, speed, kp, kd, torque);
+        }
+    }
+}
+
+static void UartThread_SendMotorStates(void)
+{
+    char text[128];
+
+    for (uint8_t i = 0; i < MOTOR_SLOT_COUNT; ++i) {
+        volatile MotorState_t *state = &g_motor_states[i];
+        int len = snprintf(
+            text,
+            sizeof(text),
+            "state %u id %u en %u valid %u p_mrad %ld v_mrad_s %ld tau_mNm %ld temp_c10 %ld\r\n",
+            (unsigned int)i,
+            (unsigned int)state->can_id,
+            (unsigned int)state->is_enabled,
+            (unsigned int)state->is_valid,
+            (long)UartThread_FloatToMilli(state->joint_position),
+            (long)UartThread_FloatToMilli(state->joint_velocity),
+            (long)UartThread_FloatToMilli(state->motor_torque),
+            (long)UartThread_FloatToDeci(state->temperature)
+        );
+
+        if (len > 0) {
+            if (len > (int)sizeof(text)) {
+                len = (int)sizeof(text);
+            }
+            HAL_UART_Transmit(&huart1, (uint8_t *)text, (uint16_t)len, 20);
+        }
     }
 }
 
 void UartThread_Init(void)
 {
     HAL_UART_Receive_IT(&huart1, &rx_byte, 1);
-    last_hello_ms = HAL_GetTick();
 }
 
 void UartThread_Run(void)
 {
-    static const uint8_t hello[] = "helloworld\r\n";
     uint8_t data = 0;
-    uint32_t now = HAL_GetTick();
-
-    if ((now - last_hello_ms) >= 1000U) {
-        HAL_UART_Transmit(&huart1, (uint8_t *)hello, sizeof(hello) - 1U, 10);
-        last_hello_ms = now;
-    }
 
     while (UartThread_PopByte(&data)) {
         if (data == '\r') {
@@ -112,6 +181,8 @@ void UartThread_Run(void)
             line_len = 0;
         }
     }
+
+    UartThread_SendMotorStates();
 }
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)

@@ -118,7 +118,7 @@ void HAL_CAN_MspDeInit(CAN_HandleTypeDef* canHandle)
 }
 
 /* USER CODE BEGIN 1 */
-#include "rs05_motor.h"
+#include "motor_thread.h"
 
 // CAN1 过滤器配置（全通模式，接收所有帧）
 void CAN1_Filter_Init(void)
@@ -152,8 +152,7 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
             // 【修改1】RS05 私有协议使用的是 29位扩展帧
             if (rx_header.IDE == CAN_ID_EXT)
             {
-                // 【修改2】使用私有协议解析函数，并传入 ExtId 以便提取电机 ID
-                RS05_Private_ParseFeedback(rx_data, rx_header.ExtId);
+                MotorThread_OnCanFeedback(rx_header.ExtId, rx_data);
             }
         }
     }

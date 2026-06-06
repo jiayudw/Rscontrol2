@@ -149,6 +149,30 @@ The `cmd` field order is:
 target_position target_speed kp kd target_torque
 ```
 
+Current firmware also supports an indexed command format:
+
+```text
+cmd index target_position target_speed kp kd target_torque
+```
+
+For slot 0 position tests from `-3` to `3` rad:
+
+```bash
+export TTY=/dev/ttyUSB2
+stty -F "$TTY" 115200 cs8 -cstopb -parenb -ixon -ixoff -crtscts raw
+
+printf "cmd 0 -3.000 0.0 0.5 0.01 0.0\n" > "$TTY"
+printf "cmd 0 -2.333 0.0 0.5 0.01 0.0\n" > "$TTY"
+printf "cmd 0 -1.667 0.0 0.5 0.01 0.0\n" > "$TTY"
+printf "cmd 0 -1.000 0.0 0.5 0.01 0.0\n" > "$TTY"
+printf "cmd 0 -0.333 0.0 0.5 0.01 0.0\n" > "$TTY"
+printf "cmd 0 0.333 0.0 0.5 0.01 0.0\n" > "$TTY"
+printf "cmd 0 1.000 0.0 0.5 0.01 0.0\n" > "$TTY"
+printf "cmd 0 1.667 0.0 0.5 0.01 0.0\n" > "$TTY"
+printf "cmd 0 2.333 0.0 0.5 0.01 0.0\n" > "$TTY"
+printf "cmd 0 3.000 0.0 0.5 0.01 0.0\n" > "$TTY"
+```
+
 ## UART Loopback And RX Interrupt Test
 
 Current confirmed board mapping:
