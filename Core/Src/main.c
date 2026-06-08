@@ -24,6 +24,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "chassis.h"
 #include "motor_thread.h"
 #include "uart_thread.h"
 /* USER CODE END Includes */
@@ -102,7 +103,9 @@ int main(void)
   HAL_CAN_ActivateNotification(&hcan1, CAN_IT_RX_FIFO0_MSG_PENDING);
 
   MotorThread_Init(&hcan1);
+  Chassis_Init(&hcan1);
   UartThread_Init();
+  uint32_t last_chassis_ms = HAL_GetTick();
   uint32_t last_uart_ms = HAL_GetTick();
   uint32_t last_motor_ms = HAL_GetTick();
   /* USER CODE END 2 */
@@ -124,6 +127,11 @@ int main(void)
     if ((now - last_motor_ms) >= MOTOR_THREAD_PERIOD_MS) {
       MotorThread_Run10ms();
       last_motor_ms += MOTOR_THREAD_PERIOD_MS;
+    }
+
+    if ((now - last_chassis_ms) >= CHASSIS_THREAD_PERIOD_MS) {
+      Chassis_Run();
+      last_chassis_ms += CHASSIS_THREAD_PERIOD_MS;
     }
 
     HAL_Delay(1);

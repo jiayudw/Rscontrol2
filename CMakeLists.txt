@@ -47,6 +47,9 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user sources here
     Core/Src/main.c
     Core/Src/rs_motor.c
+    Core/Src/pid.c
+    Core/Src/dji_motor.c
+    Core/Src/chassis.c
     Core/Src/motor_shared.c
     Core/Src/motor_thread.c
     Core/Src/usart.c

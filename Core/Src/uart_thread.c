@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "chassis.h"
 #include "motor_shared.h"
 #include "usart.h"
 
@@ -10,9 +11,12 @@
 #define UART_FRAME_HEADER 0xAAU
 #define UART_CONTROL_HEADER 0xABU
 #define UART_FRAME_TAIL 0x55U
-#define UART_FRAME_PAYLOAD_SIZE 24U
+#define UART_FRAME_PAYLOAD_SIZE 36U
 #define UART_CONTROL_PAYLOAD_SIZE 1U
 #define UART_POSITION_MOTOR_COUNT 6U
+#define UART_CHASSIS_VX_INDEX 6U
+#define UART_CHASSIS_VY_INDEX 7U
+#define UART_CHASSIS_WZ_INDEX 8U
 #define UART_COMMAND_SPEED 0.0f
 #define UART_COMMAND_KP 1.1f
 #define UART_COMMAND_KD 0.1f
@@ -22,6 +26,7 @@
 #define UART_FRAME_TYPE_CONTROL 2U
 #define UART_CONTROL_NORMAL_MODE 0U
 #define UART_CONTROL_CALIBRATION_MODE 1U
+#define UART_TELEMETRY_PERIOD_MS 200U
 
 static volatile uint8_t rx_buffer[UART_RX_BUFFER_SIZE];
 static volatile uint16_t rx_head = 0;
@@ -66,6 +71,11 @@ static float UartThread_ReadLeFloat(const uint8_t *data)
     return value;
 }
 
+static int UartThread_IsFiniteCommand(float value)
+{
+    return value == value && value < 1000000.0f && value > -1000000.0f;
+}
+
 static void UartThread_PushByte(uint8_t data)
 {
     uint16_t next = (uint16_t)((rx_head + 1U) % UART_RX_BUFFER_SIZE);
@@ -90,6 +100,22 @@ static void UartThread_ParseFrame(const uint8_t payload[UART_FRAME_PAYLOAD_SIZE]
 {
     for (uint8_t i = 0U; i < UART_POSITION_MOTOR_COUNT; ++i) {
         float position = UartThread_ReadLeFloat(&payload[i * 4U]);
+        if (!UartThread_IsFiniteCommand(position)) {
+            return;
+        }
+    }
+
+    float chassis_vx = UartThread_ReadLeFloat(&payload[UART_CHASSIS_VX_INDEX * 4U]);
+    float chassis_vy = UartThread_ReadLeFloat(&payload[UART_CHASSIS_VY_INDEX * 4U]);
+    float chassis_wz = UartThread_ReadLeFloat(&payload[UART_CHASSIS_WZ_INDEX * 4U]);
+    if (!UartThread_IsFiniteCommand(chassis_vx) ||
+        !UartThread_IsFiniteCommand(chassis_vy) ||
+        !UartThread_IsFiniteCommand(chassis_wz)) {
+        return;
+    }
+
+    for (uint8_t i = 0U; i < UART_POSITION_MOTOR_COUNT; ++i) {
+        float position = UartThread_ReadLeFloat(&payload[i * 4U]);
         MotorShared_SetCommand(
             i,
             position,
@@ -99,6 +125,8 @@ static void UartThread_ParseFrame(const uint8_t payload[UART_FRAME_PAYLOAD_SIZE]
             UART_COMMAND_TORQUE
         );
     }
+
+    Chassis_SetCommand(chassis_vx, chassis_vy, chassis_wz);
 }
 
 static void UartThread_ParseControlFrame(uint8_t mode)
@@ -187,7 +215,7 @@ static void UartThread_SendMotorStates(void)
             if (len > (int)sizeof(text)) {
                 len = (int)sizeof(text);
             }
-            HAL_UART_Transmit(&huart1, (uint8_t *)text, (uint16_t)len, 20);
+            HAL_UART_Transmit(&huart1, (uint8_t *)text, (uint16_t)len, 5);
         }
     }
 }
@@ -199,13 +227,18 @@ void UartThread_Init(void)
 
 void UartThread_Run(void)
 {
+    static uint32_t last_telemetry_ms = 0U;
     uint8_t data = 0;
 
     while (UartThread_PopByte(&data)) {
         UartThread_ProcessByte(data);
     }
 
-    UartThread_SendMotorStates();
+    uint32_t now = HAL_GetTick();
+    if ((now - last_telemetry_ms) >= UART_TELEMETRY_PERIOD_MS) {
+        UartThread_SendMotorStates();
+        last_telemetry_ms = now;
+    }
 }
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)

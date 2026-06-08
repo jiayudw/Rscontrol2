@@ -274,7 +274,7 @@ mode = 1
 Enter zero-force calibration mode and watch raw data on `/dev/ttyUSB2`:
 
 ```bash
-export TTY=/dev/ttyUSB2
+export TTY=/dev/ttyUSB0
 python3 tools/parse_motor_state.py "$TTY" --enter-calibration --raw-table
 ```
 

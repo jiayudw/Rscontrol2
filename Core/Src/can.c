@@ -118,6 +118,7 @@ void HAL_CAN_MspDeInit(CAN_HandleTypeDef* canHandle)
 }
 
 /* USER CODE BEGIN 1 */
+#include "dji_motor.h"
 #include "motor_thread.h"
 
 // CAN1 过滤器配置（全通模式，接收所有帧）
@@ -149,10 +150,13 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
     {
         if (HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO0, &rx_header, rx_data) == HAL_OK)
         {
-            // 【修改1】RS05 私有协议使用的是 29位扩展帧
             if (rx_header.IDE == CAN_ID_EXT)
             {
                 MotorThread_OnCanFeedback(rx_header.ExtId, rx_data);
+            }
+            else if (rx_header.IDE == CAN_ID_STD)
+            {
+                DjiMotor_OnCanFeedback(rx_header.StdId, rx_data);
             }
         }
     }
