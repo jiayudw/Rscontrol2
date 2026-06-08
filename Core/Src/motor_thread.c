@@ -6,10 +6,10 @@ static CAN_HandleTypeDef *motor_hcan = 0;
 
 static const float motor_startq_raw_rad[MOTOR_SLOT_COUNT] = {
     2.487f,
-    0.0f,
-    0.0f,
-    0.0f,
-    0.0f,
+    4.439f,
+    3.741f,
+    2.155f,
+    -7.015f,
     0.0f,
     0.0f,
 };
