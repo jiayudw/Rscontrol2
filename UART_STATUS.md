@@ -35,27 +35,56 @@ UartThread_Run()
 
 ## Current UART Commands
 
-Supported RX command frame:
+Supported RX command frames:
 
 ```text
-0xAA + 24-byte payload + 0x55
+0xAA + 27-byte payload + 0x55
+0xBB + 27-byte payload + 0x55
 ```
 
-Payload is little-endian:
+`0xAA` payload is little-endian:
 
 ```text
-uint32 index
-float32 target_position
-float32 target_speed
-float32 kp
-float32 kd
-float32 target_torque
+float32 slot0_position_rad
+float32 slot1_position_rad
+float32 slot2_position_rad
+float32 slot3_position_rad
+float32 slot4_position_rad
+float32 slot5_position_rad
+uint8_t reserved[3]
+```
+
+`0xBB` payload is little-endian:
+
+```text
+float32 slot6_position_rad
+float32 chassis_vx_m_s
+float32 chassis_vy_m_s
+float32 chassis_wz_rad_s
+int8_t lift_command
+uint8_t reserved[10]
 ```
 
 Example:
 
 ```bash
-python3 -c 'import struct,sys; sys.stdout.buffer.write(b"\xAA" + struct.pack("<Ifffff", 0, 0.88, 0.0, 0.5, 0.01, 0.0) + b"\x55")' > /dev/ttyUSB2
+python3 -c 'import struct,sys; sys.stdout.buffer.write(b"\xAA" + struct.pack("<ffffff3x", 0.88, 0.0, 0.0, 0.0, 0.0, 0.0) + b"\x55")' > /dev/ttyUSB2
+python3 -c 'import struct,sys; sys.stdout.buffer.write(b"\xBB" + struct.pack("<ffffb10x", 0.0, 0.0, 0.0, 0.0, 0) + b"\x55")' > /dev/ttyUSB2
+```
+
+Supported control frame:
+
+```text
+0xAB + mode + 0x55
+```
+
+Modes:
+
+```text
+0x00 -> normal position mode
+0x01 -> calibration mode
+0x02 -> disable UART state telemetry
+0x03 -> enable UART state telemetry
 ```
 
 ## Confirmed Working
@@ -95,7 +124,7 @@ Sending commands from PC to board has not changed the motor target.
 Test command sent:
 
 ```bash
-python3 -c 'import struct,sys; sys.stdout.buffer.write(b"\xAA" + struct.pack("<Ifffff", 0, 0.88, 0.0, 0.5, 0.01, 0.0) + b"\x55")' > /dev/ttyUSB2
+python3 -c 'import struct,sys; sys.stdout.buffer.write(b"\xAA" + struct.pack("<ffffff3x", 0.88, 0.0, 0.0, 0.0, 0.0, 0.0) + b"\x55")' > /dev/ttyUSB2
 ```
 
 GDB result after sending:

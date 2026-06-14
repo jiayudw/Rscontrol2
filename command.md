@@ -149,13 +149,14 @@ Board connector `UART2` maps to STM32 `USART1`.
 
 USART1 is configured as `115200 8N1` on `PA9=TX`, `PB7=RX`.
 
-Send one fixed-length binary command frame:
+The upper computer now sends two fixed-length 29-byte binary command frames.
 
 ```text
-0xAA + 24-byte payload + 0x55
+0xAA + 27-byte payload + 0x55
+0xBB + 27-byte payload + 0x55
 ```
 
-Payload is little-endian:
+`0xAA` payload is little-endian:
 
 ```text
 float32 slot0_position_rad
@@ -164,6 +165,18 @@ float32 slot2_position_rad
 float32 slot3_position_rad
 float32 slot4_position_rad
 float32 slot5_position_rad
+uint8_t reserved[3]
+```
+
+`0xBB` payload is little-endian:
+
+```text
+float32 slot6_position_rad
+float32 chassis_vx_m_s
+float32 chassis_vy_m_s
+float32 chassis_wz_rad_s
+int8_t lift_command
+uint8_t reserved[10]
 ```
 
 Current slot-to-CAN-ID mapping:
@@ -175,9 +188,10 @@ slot 2 -> CAN ID 2
 slot 3 -> CAN ID 3
 slot 4 -> CAN ID 4
 slot 5 -> CAN ID 5
+slot 6 -> CAN ID 6
 ```
 
-The firmware applies fixed control parameters to all six received positions:
+The firmware applies fixed control parameters to all received arm positions:
 
 ```text
 speed = 0.0 rad/s
@@ -196,27 +210,29 @@ stty -F "$TTY" 115200 cs8 -cstopb -parenb -ixon -ixoff -crtscts raw
 Example: set only slot 0 / CAN ID 127 to position `0.8` rad, and command slots 1-5 to `0.0` rad:
 
 ```bash
-python3 -c 'import struct,sys; p0=float(sys.argv[1]); sys.stdout.buffer.write(b"\xAA" + struct.pack("<ffffff", p0, 0.0, 0.0, 0.0, 0.0, 0.0) + b"\x55")' 0.8 > "$TTY"
+python3 -c 'import struct,sys; p0=float(sys.argv[1]); sys.stdout.buffer.write(b"\xAA" + struct.pack("<ffffff3x", p0, 0.0, 0.0, 0.0, 0.0, 0.0) + b"\x55")' 0.8 > "$TTY"
 ```
 
-Example: command all six slots in one frame:
+Example: command all seven slots plus chassis velocity:
 
 ```bash
-python3 -c 'import struct,sys; vals=[float(v) for v in sys.argv[1:7]]; sys.stdout.buffer.write(b"\xAA" + struct.pack("<ffffff", *vals) + b"\x55")' \
+python3 -c 'import struct,sys; vals=[float(v) for v in sys.argv[1:7]]; sys.stdout.buffer.write(b"\xAA" + struct.pack("<ffffff3x", *vals) + b"\x55")' \
   0.8 0.1 0.2 0.3 0.4 0.5 > "$TTY"
+python3 -c 'import struct,sys; p6,vx,vy,wz=[float(v) for v in sys.argv[1:5]]; sys.stdout.buffer.write(b"\xBB" + struct.pack("<ffffb10x", p6, vx, vy, wz, 0) + b"\x55")' \
+  0.6 0.0 0.0 0.0 > "$TTY"
 ```
 
-Example: return all six slots to zero:
+Example: return slots 0-5 to zero:
 
 ```bash
-python3 -c 'import struct,sys; sys.stdout.buffer.write(b"\xAA" + struct.pack("<ffffff", 0.0, 0.0, 0.0, 0.0, 0.0, 0.0) + b"\x55")' > "$TTY"
+python3 -c 'import struct,sys; sys.stdout.buffer.write(b"\xAA" + struct.pack("<ffffff3x", 0.0, 0.0, 0.0, 0.0, 0.0, 0.0) + b"\x55")' > "$TTY"
 ```
 
 Example: sweep slot 0 / CAN ID 127 from `-1.0` to `1.0` rad while holding slots 1-5 at zero:
 
 ```bash
 for p in -1.000 -0.750 -0.500 -0.250 0.000 0.250 0.500 0.750 1.000; do
-  python3 -c 'import struct,sys; p0=float(sys.argv[1]); sys.stdout.buffer.write(b"\xAA" + struct.pack("<ffffff", p0, 0.0, 0.0, 0.0, 0.0, 0.0) + b"\x55")' "$p" > "$TTY"
+  python3 -c 'import struct,sys; p0=float(sys.argv[1]); sys.stdout.buffer.write(b"\xAA" + struct.pack("<ffffff3x", p0, 0.0, 0.0, 0.0, 0.0, 0.0) + b"\x55")' "$p" > "$TTY"
   sleep 0.2
 done
 ```
@@ -232,13 +248,13 @@ import time
 
 for step in range(250):
     p0 = 0.5 * math.sin(step * 0.04)
-    sys.stdout.buffer.write(b"\xAA" + struct.pack("<ffffff", p0, 0.0, 0.0, 0.0, 0.0, 0.0) + b"\x55")
+    sys.stdout.buffer.write(b"\xAA" + struct.pack("<ffffff3x", p0, 0.0, 0.0, 0.0, 0.0, 0.0) + b"\x55")
     sys.stdout.buffer.flush()
     time.sleep(0.02)
 PY
 ```
 
-The board still transmits motor state as ASCII `state ...` lines.
+Motor state telemetry is disabled by default. The monitor script enables it while running and disables it on exit, then parses ASCII `state ...` lines from the board.
 
 ```bash
 python3 tools/parse_motor_state.py "$TTY" --raw
@@ -257,6 +273,8 @@ Modes:
 ```text
 0x01 -> enter calibration mode
 0x00 -> return to normal position mode
+0x03 -> enable UART state telemetry
+0x02 -> disable UART state telemetry
 ```
 
 Slot 0 / CAN ID `127` uses a fixed Startq-style raw zero offset of `2.487 rad`. Calibration mode does not overwrite that offset; it is only a zero-force raw-data monitor. While calibration mode is active:
@@ -301,7 +319,7 @@ python3 tools/parse_motor_state.py "$TTY" --exit-calibration --send-only
 After returning to normal mode, slot 0 commands are interpreted relative to the fixed `2.487 rad` Startq offset:
 
 ```bash
-python3 -c 'import struct,sys; sys.stdout.buffer.write(b"\xAA" + struct.pack("<ffffff", 0.5, 0.0, 0.0, 0.0, 0.0, 0.0) + b"\x55")' > "$TTY"
+python3 -c 'import struct,sys; sys.stdout.buffer.write(b"\xAA" + struct.pack("<ffffff3x", 0.5, 0.0, 0.0, 0.0, 0.0, 0.0) + b"\x55")' > "$TTY"
 ```
 
 ## UART Loopback And RX Interrupt Test
@@ -378,7 +396,7 @@ Then send:
 
 ```bash
 stty -F "$TTY" 115200 cs8 -cstopb -parenb -ixon -ixoff -crtscts raw
-python3 -c 'import struct,sys; sys.stdout.buffer.write(b"\xAA" + struct.pack("<ffffff", 0.88, 0.0, 0.0, 0.0, 0.0, 0.0) + b"\x55")' > "$TTY"
+python3 -c 'import struct,sys; sys.stdout.buffer.write(b"\xAA" + struct.pack("<ffffff3x", 0.88, 0.0, 0.0, 0.0, 0.0, 0.0) + b"\x55")' > "$TTY"
 ```
 
 Check with GDB:
@@ -447,7 +465,7 @@ Terminal 3, send bytes:
 ```bash
 export TTY=/dev/ttyUSB2
 stty -F "$TTY" 115200 cs8 -cstopb -parenb -ixon -ixoff -crtscts raw
-python3 -c 'import struct,sys; sys.stdout.buffer.write(b"\xAA" + struct.pack("<ffffff", 0.88, 0.0, 0.0, 0.0, 0.0, 0.0) + b"\x55")' > "$TTY"
+python3 -c 'import struct,sys; sys.stdout.buffer.write(b"\xAA" + struct.pack("<ffffff3x", 0.88, 0.0, 0.0, 0.0, 0.0, 0.0) + b"\x55")' > "$TTY"
 ```
 
 Back in GDB, press `Ctrl-C`, then:

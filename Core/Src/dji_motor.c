@@ -10,6 +10,7 @@
 static CAN_HandleTypeDef *dji_hcan = 0;
 static DjiMotor_t dji_motors[DJI_MOTOR_COUNT];
 
+/* 将 DJI 电机相关数值限制在给定上下限之间。 */
 static float DjiMotor_Clamp(float value, float min_value, float max_value)
 {
     if (value > max_value) {
@@ -23,6 +24,7 @@ static float DjiMotor_Clamp(float value, float min_value, float max_value)
     return value;
 }
 
+/* 将浮点电流限幅并四舍五入为 int16 输出。 */
 static int16_t DjiMotor_ClampInt16(float value)
 {
     value = DjiMotor_Clamp(value, -DJI_MOTOR_CURRENT_LIMIT, DJI_MOTOR_CURRENT_LIMIT);
@@ -33,6 +35,7 @@ static int16_t DjiMotor_ClampInt16(float value)
     return (int16_t)(value - 0.5f);
 }
 
+/* 根据 DJI 电机标准 CAN ID 查找底盘电机槽位。 */
 static int DjiMotor_FindByCanId(uint32_t std_id)
 {
     uint8_t motor_id = (uint8_t)(std_id - 0x200U);
@@ -46,6 +49,7 @@ static int DjiMotor_FindByCanId(uint32_t std_id)
     return -1;
 }
 
+/* 将四个 DJI 底盘电机的电流命令打包并发送到 CAN 总线。 */
 static HAL_StatusTypeDef DjiMotor_SendCurrents(void)
 {
     if (dji_hcan == 0) {
@@ -63,6 +67,7 @@ static HAL_StatusTypeDef DjiMotor_SendCurrents(void)
     header.RTR = CAN_RTR_DATA;
     header.DLC = 8U;
 
+    /* DJI 3508/6020 电流控制帧：标准 ID 0x200，一帧同时下发 1~4 号电机电流。 */
     for (uint8_t i = 0U; i < DJI_MOTOR_COUNT; ++i) {
         uint8_t slot = (uint8_t)(dji_motors[i].id - 1U);
         if (slot >= 4U) {
@@ -83,6 +88,7 @@ static HAL_StatusTypeDef DjiMotor_SendCurrents(void)
     return HAL_CAN_AddTxMessage(dji_hcan, &header, data, &mailbox);
 }
 
+/* 初始化 DJI 底盘电机映射、方向和速度 PID 参数。 */
 void DjiMotor_Init(CAN_HandleTypeDef *hcan)
 {
     static const uint8_t ids[DJI_MOTOR_COUNT] = {
@@ -108,6 +114,7 @@ void DjiMotor_Init(CAN_HandleTypeDef *hcan)
     }
 }
 
+/* 设置指定底盘电机的目标转速 rpm。 */
 void DjiMotor_SetTargetRpm(uint8_t index, float target_rpm)
 {
     if (index >= DJI_MOTOR_COUNT) {
@@ -117,6 +124,7 @@ void DjiMotor_SetTargetRpm(uint8_t index, float target_rpm)
     dji_motors[index].target_rpm = DjiMotor_Clamp(target_rpm, -DJI_MOTOR_TARGET_RPM_LIMIT, DJI_MOTOR_TARGET_RPM_LIMIT);
 }
 
+/* 清空所有 DJI 底盘电机目标和输出电流。 */
 void DjiMotor_StopAll(void)
 {
     for (uint8_t i = 0U; i < DJI_MOTOR_COUNT; ++i) {
@@ -128,15 +136,18 @@ void DjiMotor_StopAll(void)
     DjiMotor_SendCurrents();
 }
 
+/* 执行 DJI 底盘电机速度闭环并发送电流命令。 */
 void DjiMotor_RunControl(float dt_s)
 {
     uint32_t now = HAL_GetTick();
 
+    /* 底盘电机闭环：目标转速和反馈转速做 PID，输出 CAN 电流命令。 */
     for (uint8_t i = 0U; i < DJI_MOTOR_COUNT; ++i) {
         DjiMotor_t *motor = &dji_motors[i];
         float target = motor->target_rpm * (float)motor->direction;
         float feedback = (float)motor->speed_rpm;
 
+        /* 超时认为电机离线，立即清零输出并复位 PID。 */
         if (!motor->online || ((now - motor->last_update_ms) > DJI_MOTOR_ONLINE_TIMEOUT_MS)) {
             motor->output_current = 0;
             Pid_Reset(&motor->speed_pid);
@@ -155,6 +166,7 @@ void DjiMotor_RunControl(float dt_s)
     DjiMotor_SendCurrents();
 }
 
+/* 解析 DJI 电机反馈帧并更新速度、角度和在线状态。 */
 void DjiMotor_OnCanFeedback(uint32_t std_id, const uint8_t data[8])
 {
     if (data == 0 || std_id < DJI_MOTOR_CAN_ID_MIN || std_id > DJI_MOTOR_CAN_ID_MAX) {
@@ -175,6 +187,7 @@ void DjiMotor_OnCanFeedback(uint32_t std_id, const uint8_t data[8])
     motor->temperature = data[6];
 
     if (was_online) {
+        /* 编码器是 0~8191 循环计数，跨半圈时修正圈数。 */
         int32_t diff = (int32_t)motor->ecd - (int32_t)motor->last_ecd;
         if (diff > 4096) {
             motor->round_count--;
@@ -188,6 +201,7 @@ void DjiMotor_OnCanFeedback(uint32_t std_id, const uint8_t data[8])
     motor->last_update_ms = HAL_GetTick();
 }
 
+/* 获取指定 DJI 电机的只读状态指针。 */
 const DjiMotor_t *DjiMotor_GetState(uint8_t index)
 {
     if (index >= DJI_MOTOR_COUNT) {

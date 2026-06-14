@@ -4,6 +4,7 @@
 
 static CAN_HandleTypeDef *motor_hcan = 0;
 
+/* 每个关节的机械零位对应的电机原始角度，单位 rad。 */
 static const float motor_startq_raw_rad[MOTOR_SLOT_COUNT] = {
     2.487f,
     4.439f,
@@ -15,15 +16,17 @@ static const float motor_startq_raw_rad[MOTOR_SLOT_COUNT] = {
 };
 
 static MotorConfig_t motor_configs[MOTOR_SLOT_COUNT] = {
+    /* index, CAN ID, enabled, direction, offset, lower_limit, upper_limit */
     {0U, 0x7FU, 1U, 1.0f, 0.0f, RS_MOTOR_P_MIN, RS_MOTOR_P_MAX},
     {1U, 0x01U, 1U, 1.0f, 0.0f, RS_MOTOR_P_MIN, RS_MOTOR_P_MAX},
     {2U, 0x02U, 1U, 1.0f, 0.0f, RS_MOTOR_P_MIN, RS_MOTOR_P_MAX},
     {3U, 0x03U, 1U, 1.0f, 0.0f, RS_MOTOR_P_MIN, RS_MOTOR_P_MAX},
     {4U, 0x04U, 1U, 1.0f, 0.0f, RS_MOTOR_P_MIN, RS_MOTOR_P_MAX},
     {5U, 0x05U, 1U, 1.0f, 0.0f, RS_MOTOR_P_MIN, RS_MOTOR_P_MAX},
-    {6U, 0x06U, 0U, 1.0f, 0.0f, RS_MOTOR_P_MIN, RS_MOTOR_P_MAX},
+    {6U, 0x06U, 1U, 1.0f, 0.0f, RS_MOTOR_P_MIN, RS_MOTOR_P_MAX},
 };
 
+/* 将固定机械零位表写入运行时电机配置。 */
 static void MotorThread_ApplyStartqOffsets(void)
 {
     for (uint8_t i = 0U; i < MOTOR_SLOT_COUNT; ++i) {
@@ -31,6 +34,7 @@ static void MotorThread_ApplyStartqOffsets(void)
     }
 }
 
+/* 根据 RS 电机 CAN ID 查找对应的电机槽位。 */
 static int MotorThread_FindIndexByCanId(uint8_t can_id)
 {
     for (uint8_t i = 0; i < MOTOR_SLOT_COUNT; ++i) {
@@ -42,11 +46,13 @@ static int MotorThread_FindIndexByCanId(uint8_t can_id)
     return -1;
 }
 
+/* 等待 CAN 发送邮箱可用，并发送一帧 RS 电机 CAN 报文。 */
 static HAL_StatusTypeDef MotorThread_SendFrame(CAN_TxHeaderTypeDef *header, uint8_t data[8])
 {
     uint32_t mailbox = 0U;
     uint32_t start_ms = HAL_GetTick();
 
+    /* 等待发送邮箱，但最多等 2ms，避免主循环被 CAN 堵死。 */
     while (HAL_CAN_GetTxMailboxesFreeLevel(motor_hcan) == 0U) {
         if ((HAL_GetTick() - start_ms) > 2U) {
             return HAL_TIMEOUT;
@@ -56,11 +62,13 @@ static HAL_StatusTypeDef MotorThread_SendFrame(CAN_TxHeaderTypeDef *header, uint
     return HAL_CAN_AddTxMessage(motor_hcan, header, data, &mailbox);
 }
 
+/* 给所有启用的 RS 电机发送使能命令。 */
 static void MotorThread_EnableAll(void)
 {
     CAN_TxHeaderTypeDef header;
     uint8_t data[8];
 
+    /* 上电后给每个启用的 RS 电机重复发使能帧，提高启动成功率。 */
     for (uint8_t i = 0; i < MOTOR_SLOT_COUNT; ++i) {
         if (!motor_configs[i].enabled) {
             continue;
@@ -74,6 +82,7 @@ static void MotorThread_EnableAll(void)
     }
 }
 
+/* 初始化 RS 电机线程、零点配置和共享状态。 */
 void MotorThread_Init(CAN_HandleTypeDef *hcan)
 {
     motor_hcan = hcan;
@@ -85,11 +94,13 @@ void MotorThread_Init(CAN_HandleTypeDef *hcan)
     }
 }
 
+/* 返回当前固件配置的 RS 电机槽位数量。 */
 uint8_t MotorThread_GetMotorCount(void)
 {
     return MOTOR_SLOT_COUNT;
 }
 
+/* 每 10ms 将共享命令转换为 RS 电机 CAN 控制帧并下发。 */
 void MotorThread_Run10ms(void)
 {
     CAN_TxHeaderTypeDef header;
@@ -107,6 +118,7 @@ void MotorThread_Run10ms(void)
             continue;
         }
 
+        /* 上层命令是关节坐标；下发 CAN 前转换成电机原始坐标。 */
         float offset = g_motor_zero_offsets[i];
         float target_position = g_motor_calibration_mode ? 0.0f : command->target_position;
         float motor_position = target_position * config->direction + offset;
@@ -129,6 +141,7 @@ void MotorThread_Run10ms(void)
     }
 }
 
+/* 解析 RS 电机 CAN 反馈帧，并更新共享电机状态。 */
 void MotorThread_OnCanFeedback(uint32_t ext_id, uint8_t data[8])
 {
     RSMotorFeedback_t feedback;
@@ -145,6 +158,7 @@ void MotorThread_OnCanFeedback(uint32_t ext_id, uint8_t data[8])
     const MotorConfig_t *config = &motor_configs[index];
     volatile MotorState_t *state = &g_motor_states[index];
 
+    /* 反馈是电机原始坐标，减零点并乘方向后得到关节坐标。 */
     float joint_position = (feedback.position - g_motor_zero_offsets[index]) * config->direction;
 
     state->index = (uint8_t)index;

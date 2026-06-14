@@ -39,6 +39,8 @@ BAUD_RATES = {
 
 CONTROL_NORMAL_MODE = 0
 CONTROL_CALIBRATION_MODE = 1
+CONTROL_TELEMETRY_OFF = 2
+CONTROL_TELEMETRY_ON = 3
 
 
 @dataclass
@@ -215,6 +217,7 @@ def main() -> int:
     parsed_count = 0
     bad_count = 0
     last_render = 0.0
+    telemetry_enabled = False
 
     fd = os.open(args.port, os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
     try:
@@ -229,6 +232,8 @@ def main() -> int:
         if args.send_only:
             return 0
 
+        send_control_frame(fd, CONTROL_TELEMETRY_ON)
+        telemetry_enabled = True
         print(f"Reading {args.port} at {args.baud} baud. Ctrl-C to quit.")
 
         while True:
@@ -269,6 +274,11 @@ def main() -> int:
         print()
         return 0
     finally:
+        if telemetry_enabled:
+            try:
+                send_control_frame(fd, CONTROL_TELEMETRY_OFF)
+            except OSError:
+                pass
         os.close(fd)
 
 

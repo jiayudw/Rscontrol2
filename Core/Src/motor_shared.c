@@ -11,6 +11,7 @@ volatile float g_debug_target_torque = 0.0f;
 volatile float g_debug_kp = 0.5f;
 volatile float g_debug_kd = 0.5f;
 
+/* 初始化电机共享命令、反馈状态和零点配置，供 UART、MotorThread 和 GDB 共用。 */
 void MotorShared_Init(const MotorConfig_t *configs, uint8_t count)
 {
     for (uint8_t i = 0; i < MOTOR_SLOT_COUNT; ++i) {
@@ -59,12 +60,14 @@ void MotorShared_Init(const MotorConfig_t *configs, uint8_t count)
     }
 }
 
+/* 写入指定电机槽位的关节侧目标命令。 */
 int MotorShared_SetCommand(uint8_t index, float position, float speed, float kp, float kd, float torque)
 {
     if (index >= MOTOR_SLOT_COUNT) {
         return 0;
     }
 
+    /* 这里保存的是关节侧命令；真正加零点和方向换算在 MotorThread_Run10ms() 里做。 */
     g_motor_commands[index].target_position = position;
     g_motor_commands[index].target_speed = speed;
     g_motor_commands[index].kp = kp;
@@ -82,10 +85,12 @@ int MotorShared_SetCommand(uint8_t index, float position, float speed, float kp,
     return 1;
 }
 
+/* 切换电机校准模式，并清空已有运动命令。 */
 void MotorShared_SetCalibrationMode(uint8_t enabled)
 {
     g_motor_calibration_mode = enabled ? 1U : 0U;
 
+    /* 切换模式时清空运动命令，避免退出校准后沿用旧目标。 */
     for (uint8_t i = 0; i < MOTOR_SLOT_COUNT; ++i) {
         g_motor_commands[i].target_position = 0.0f;
         g_motor_commands[i].target_speed = 0.0f;

@@ -91,19 +91,23 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_CAN1_Init();
+  MX_CAN2_Init();
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
   // 1. 初始化过滤器
   CAN1_Filter_Init();
-  
-  // 2. 启动 CAN1 外设
+  CAN2_Filter_Init();
+
+  // 2. 启动 CAN1/CAN2 外设
   HAL_CAN_Start(&hcan1);
-  
-  // 3. 开启 CAN1 的 FIFO0 接收中断
+  HAL_CAN_Start(&hcan2);
+
+  // 3. 开启 CAN1/CAN2 的 FIFO0 接收中断
   HAL_CAN_ActivateNotification(&hcan1, CAN_IT_RX_FIFO0_MSG_PENDING);
+  HAL_CAN_ActivateNotification(&hcan2, CAN_IT_RX_FIFO0_MSG_PENDING);
 
   MotorThread_Init(&hcan1);
-  Chassis_Init(&hcan1);
+  Chassis_Init(&hcan2);
   UartThread_Init();
   uint32_t last_chassis_ms = HAL_GetTick();
   uint32_t last_uart_ms = HAL_GetTick();
