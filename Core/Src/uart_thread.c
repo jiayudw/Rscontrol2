@@ -43,6 +43,11 @@ static volatile uint16_t rx_head = 0;
 static volatile uint16_t rx_tail = 0;
 static uint8_t rx_byte = 0;
 
+volatile uint32_t g_uart_rx_irq_count = 0U;
+volatile uint32_t g_uart_error_count = 0U;
+volatile uint32_t g_uart_last_error = 0U;
+volatile uint8_t g_uart_last_rx_byte = 0U;
+
 /* 当前正在拼接的上位机协议帧。 */
 static uint8_t frame_payload[UART_COMMAND_FRAME_PAYLOAD_SIZE];
 static uint8_t frame_pos = 0U;
@@ -167,7 +172,7 @@ static void UartThread_ParseChassisFrame(const uint8_t payload[UART_COMMAND_FRAM
     }
 
     UartThread_SetPositionCommand(UART_SLOT6_INDEX, slot6_position);
-    Chassis_SetCommand(chassis_vx, chassis_vy, chassis_wz);
+    Chassis_SetCommand(chassis_vy, chassis_vx, -chassis_wz);
 }
 
 /* 解析 0xAB 控制帧，并切换校准模式或普通模式。 */
@@ -341,7 +346,18 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
     if (huart->Instance == USART1) {
         /* 收到一个字节后立即重新打开下一次中断接收。 */
+        g_uart_rx_irq_count++;
+        g_uart_last_rx_byte = rx_byte;
         UartThread_PushByte(rx_byte);
+        HAL_UART_Receive_IT(&huart1, &rx_byte, 1);
+    }
+}
+
+void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
+{
+    if (huart->Instance == USART1) {
+        g_uart_error_count++;
+        g_uart_last_error = huart->ErrorCode;
         HAL_UART_Receive_IT(&huart1, &rx_byte, 1);
     }
 }

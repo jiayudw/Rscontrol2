@@ -1,4 +1,5 @@
-r
+connect
+h
 loadfile build/Debug/Rscontrol2.elf
 r
 g

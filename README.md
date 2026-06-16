@@ -60,9 +60,9 @@ byte 17-26  uint8 reserved[10]
 
 当前底盘速度方向约定：
 
-- `vx > 0`：前进
-- `vy > 0`：右移
-- `wz > 0`：逆时针旋转
+- 串口 `vx > 0`：右移，固件在串口解析后作为底盘左右速度
+- 串口 `vy > 0`：前进，固件在串口解析后作为底盘前后速度
+- 串口 `wz > 0`：顺时针旋转，固件在串口解析后取反再交给底盘控制
 
 当前代码状态：
 
@@ -340,10 +340,10 @@ dji_motors
 当前底盘电机映射：
 
 ```text
-dji_motors[0] -> LF，ID 1
-dji_motors[1] -> RF，ID 2
-dji_motors[2] -> LB，ID 4
-dji_motors[3] -> RB，ID 3
+dji_motors[0] -> LF，ID 4
+dji_motors[1] -> RF，ID 1
+dji_motors[2] -> LB，ID 3
+dji_motors[3] -> RB，ID 2
 ```
 
 常看字段：
@@ -447,5 +447,5 @@ cmake --build build/Debug
 J-Link 烧录：
 
 ```bash
-JLinkExe -device STM32F407IG -if SWD -speed 4000 -CommanderScript flash.jlink
+JLinkExe -device STM32F407IG -if SWD -speed 1000 -autoconnect 1 -CommanderScript flash.jlink
 ```

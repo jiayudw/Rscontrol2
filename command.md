@@ -9,7 +9,7 @@ cmake --build --preset Debug
 ## Flash With J-Link
 
 ```bash
-JLinkExe -device STM32F407IG -if SWD -speed 4000 -autoconnect 1 -CommanderScript flash.jlink
+JLinkExe -device STM32F407IG -if SWD -speed 1000 -autoconnect 1 -CommanderScript flash.jlink
 ```
 
 ## Start J-Link GDB Server
@@ -17,7 +17,7 @@ JLinkExe -device STM32F407IG -if SWD -speed 4000 -autoconnect 1 -CommanderScript
 Run this in one terminal and keep it open:
 
 ```bash
-JLinkGDBServer -device STM32F407IG -if SWD -speed 4000
+JLinkGDBServer -device STM32F407IG -if SWD -speed 1000
 ```
 
 ## Change Target Position With GDB
@@ -402,7 +402,7 @@ python3 -c 'import struct,sys; sys.stdout.buffer.write(b"\xAA" + struct.pack("<f
 Check with GDB:
 
 ```bash
-JLinkGDBServer -device STM32F407IG -if SWD -speed 4000
+JLinkGDBServer -device STM32F407IG -if SWD -speed 1000
 ```
 
 In another terminal:
@@ -437,7 +437,7 @@ This checks whether `HAL_UART_RxCpltCallback()` is triggered. This is a GDB sess
 Terminal 1:
 
 ```bash
-JLinkGDBServer -device STM32F407IG -if SWD -speed 4000
+JLinkGDBServer -device STM32F407IG -if SWD -speed 1000
 ```
 
 Terminal 2:

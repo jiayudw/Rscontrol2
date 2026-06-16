@@ -10,6 +10,19 @@
 static CAN_HandleTypeDef *dji_hcan = 0;
 static DjiMotor_t dji_motors[DJI_MOTOR_COUNT];
 
+volatile uint32_t g_dji_control_count = 0U;
+volatile uint32_t g_dji_pid_update_count = 0U;
+volatile uint32_t g_dji_skip_offline_count = 0U;
+volatile uint32_t g_dji_skip_zero_count = 0U;
+volatile uint32_t g_dji_feedback_count = 0U;
+volatile uint32_t g_dji_last_feedback_id = 0U;
+volatile uint32_t g_dji_online_mask = 0U;
+volatile uint32_t g_dji_last_tx_status = 0U;
+volatile uint32_t g_dji_last_tx_error = 0U;
+volatile int16_t g_dji_debug_target_rpm[DJI_MOTOR_COUNT] = {0, 0, 0, 0};
+volatile int16_t g_dji_debug_feedback_rpm[DJI_MOTOR_COUNT] = {0, 0, 0, 0};
+volatile int16_t g_dji_debug_output_current[DJI_MOTOR_COUNT] = {0, 0, 0, 0};
+
 /* 将 DJI 电机相关数值限制在给定上下限之间。 */
 static float DjiMotor_Clamp(float value, float min_value, float max_value)
 {
@@ -85,17 +98,20 @@ static HAL_StatusTypeDef DjiMotor_SendCurrents(void)
         }
     }
 
-    return HAL_CAN_AddTxMessage(dji_hcan, &header, data, &mailbox);
+    HAL_StatusTypeDef status = HAL_CAN_AddTxMessage(dji_hcan, &header, data, &mailbox);
+    g_dji_last_tx_status = (uint32_t)status;
+    g_dji_last_tx_error = HAL_CAN_GetError(dji_hcan);
+    return status;
 }
 
 /* 初始化 DJI 底盘电机映射、方向和速度 PID 参数。 */
 void DjiMotor_Init(CAN_HandleTypeDef *hcan)
 {
     static const uint8_t ids[DJI_MOTOR_COUNT] = {
-        1U, /* LF */
-        2U, /* RF */
-        4U, /* LB */
-        3U, /* RB */
+        4U, /* LF */
+        1U, /* RF */
+        3U, /* LB */
+        2U, /* RB */
     };
     static const int8_t directions[DJI_MOTOR_COUNT] = {
         1,  /* LF */
@@ -140,28 +156,40 @@ void DjiMotor_StopAll(void)
 void DjiMotor_RunControl(float dt_s)
 {
     uint32_t now = HAL_GetTick();
+    uint32_t online_mask = 0U;
+    g_dji_control_count++;
 
     /* 底盘电机闭环：目标转速和反馈转速做 PID，输出 CAN 电流命令。 */
     for (uint8_t i = 0U; i < DJI_MOTOR_COUNT; ++i) {
         DjiMotor_t *motor = &dji_motors[i];
         float target = motor->target_rpm * (float)motor->direction;
         float feedback = (float)motor->speed_rpm;
+        g_dji_debug_target_rpm[i] = (int16_t)target;
+        g_dji_debug_feedback_rpm[i] = motor->speed_rpm;
 
         /* 超时认为电机离线，立即清零输出并复位 PID。 */
         if (!motor->online || ((now - motor->last_update_ms) > DJI_MOTOR_ONLINE_TIMEOUT_MS)) {
             motor->output_current = 0;
+            g_dji_skip_offline_count++;
             Pid_Reset(&motor->speed_pid);
+            g_dji_debug_output_current[i] = motor->output_current;
             continue;
         }
+        online_mask |= (1UL << i);
 
         if (target < DJI_MOTOR_ZERO_TARGET_RPM && target > -DJI_MOTOR_ZERO_TARGET_RPM) {
             motor->output_current = 0;
+            g_dji_skip_zero_count++;
             Pid_Reset(&motor->speed_pid);
+            g_dji_debug_output_current[i] = motor->output_current;
             continue;
         }
 
         motor->output_current = DjiMotor_ClampInt16(Pid_Update(&motor->speed_pid, target, feedback, dt_s));
+        g_dji_pid_update_count++;
+        g_dji_debug_output_current[i] = motor->output_current;
     }
+    g_dji_online_mask = online_mask;
 
     DjiMotor_SendCurrents();
 }
@@ -179,6 +207,8 @@ void DjiMotor_OnCanFeedback(uint32_t std_id, const uint8_t data[8])
     }
 
     DjiMotor_t *motor = &dji_motors[index];
+    g_dji_feedback_count++;
+    g_dji_last_feedback_id = std_id;
     uint8_t was_online = motor->online;
     motor->last_ecd = motor->ecd;
     motor->ecd = ((uint16_t)data[0] << 8) | data[1];

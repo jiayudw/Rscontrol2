@@ -21,6 +21,14 @@ typedef struct {
 
 static ChassisCommand_t chassis_command;
 
+volatile uint32_t g_chassis_set_count = 0U;
+volatile uint32_t g_chassis_run_count = 0U;
+volatile uint32_t g_chassis_timeout_count = 0U;
+volatile float g_chassis_debug_vx = 0.0f;
+volatile float g_chassis_debug_vy = 0.0f;
+volatile float g_chassis_debug_wz = 0.0f;
+volatile float g_chassis_debug_target_rpm[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+
 /* 将底盘命令数值限制在给定上下限之间。 */
 static float Chassis_Clamp(float value, float min_value, float max_value)
 {
@@ -72,6 +80,10 @@ void Chassis_SetCommand(float vx, float vy, float wz)
     chassis_command.wz = Chassis_Clamp(wz, -CHASSIS_MAX_WZ, CHASSIS_MAX_WZ);
     chassis_command.last_update_ms = HAL_GetTick();
     chassis_command.enabled = 1U;
+    g_chassis_set_count++;
+    g_chassis_debug_vx = chassis_command.vx;
+    g_chassis_debug_vy = chassis_command.vy;
+    g_chassis_debug_wz = chassis_command.wz;
 }
 
 /* 立即清空底盘速度命令并停止所有底盘电机。 */
@@ -91,11 +103,13 @@ void Chassis_Run(void)
     float vx = chassis_command.vx;
     float vy = chassis_command.vy;
     float wz = chassis_command.wz;
+    g_chassis_run_count++;
 
     if (!chassis_command.enabled || ((now - chassis_command.last_update_ms) > CHASSIS_TIMEOUT_MS)) {
         vx = 0.0f;
         vy = 0.0f;
         wz = 0.0f;
+        g_chassis_timeout_count++;
     }
 
     /* 麦轮/全向底盘逆解：车体速度换算为四个轮子的线速度。 */
@@ -104,9 +118,14 @@ void Chassis_Run(void)
     float lb = vx + vy - wz * CHASSIS_ROTATE_RADIUS_M;
     float rb = vx - vy + wz * CHASSIS_ROTATE_RADIUS_M;
 
-    DjiMotor_SetTargetRpm(0U, Chassis_WheelLinearToMotorRpm(lf));
-    DjiMotor_SetTargetRpm(1U, Chassis_WheelLinearToMotorRpm(rf));
-    DjiMotor_SetTargetRpm(2U, Chassis_WheelLinearToMotorRpm(lb));
-    DjiMotor_SetTargetRpm(3U, Chassis_WheelLinearToMotorRpm(rb));
+    g_chassis_debug_target_rpm[0] = Chassis_WheelLinearToMotorRpm(lf);
+    g_chassis_debug_target_rpm[1] = Chassis_WheelLinearToMotorRpm(rf);
+    g_chassis_debug_target_rpm[2] = Chassis_WheelLinearToMotorRpm(lb);
+    g_chassis_debug_target_rpm[3] = Chassis_WheelLinearToMotorRpm(rb);
+
+    DjiMotor_SetTargetRpm(0U, g_chassis_debug_target_rpm[0]);
+    DjiMotor_SetTargetRpm(1U, g_chassis_debug_target_rpm[1]);
+    DjiMotor_SetTargetRpm(2U, g_chassis_debug_target_rpm[2]);
+    DjiMotor_SetTargetRpm(3U, g_chassis_debug_target_rpm[3]);
     DjiMotor_RunControl(1.0f / (float)CHASSIS_THREAD_HZ);
 }
