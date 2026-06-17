@@ -243,6 +243,15 @@ void CAN2_Filter_Init(void)
 CAN_RxHeaderTypeDef rx_header;
 uint8_t rx_data[8];
 
+volatile uint32_t g_can2_rx_count = 0U;
+volatile uint32_t g_can2_std_rx_count = 0U;
+volatile uint32_t g_can2_last_std_id = 0U;
+volatile uint32_t g_can1_rx_count = 0U;
+volatile uint32_t g_can1_ext_rx_count = 0U;
+volatile uint32_t g_can1_std_rx_count = 0U;
+volatile uint32_t g_can1_last_ext_id = 0U;
+volatile uint32_t g_can1_last_std_id = 0U;
+
 // 处理 CAN FIFO0 接收中断，并按 CAN 外设分发给对应电机模块。
 void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
 {
@@ -250,9 +259,17 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
     {
         if (HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO0, &rx_header, rx_data) == HAL_OK)
         {
+            g_can1_rx_count++;
             if (rx_header.IDE == CAN_ID_EXT)
             {
+                g_can1_ext_rx_count++;
+                g_can1_last_ext_id = rx_header.ExtId;
                 MotorThread_OnCanFeedback(rx_header.ExtId, rx_data);
+            }
+            else if (rx_header.IDE == CAN_ID_STD)
+            {
+                g_can1_std_rx_count++;
+                g_can1_last_std_id = rx_header.StdId;
             }
         }
     }
@@ -260,8 +277,11 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
     {
         if (HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO0, &rx_header, rx_data) == HAL_OK)
         {
+            g_can2_rx_count++;
             if (rx_header.IDE == CAN_ID_STD)
             {
+                g_can2_std_rx_count++;
+                g_can2_last_std_id = rx_header.StdId;
                 DjiMotor_OnCanFeedback(rx_header.StdId, rx_data);
             }
         }

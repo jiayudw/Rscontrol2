@@ -8,7 +8,8 @@
 extern "C" {
 #endif
 
-#define DJI_MOTOR_COUNT 4U
+#define DJI_MOTOR_COUNT 5U
+#define DJI_LIFT_MOTOR_INDEX 4U
 #define DJI_MOTOR_CAN_ID_MIN 0x201U
 #define DJI_MOTOR_CAN_ID_MAX 0x208U
 
@@ -31,6 +32,7 @@ typedef struct {
 
 void DjiMotor_Init(CAN_HandleTypeDef *hcan);
 void DjiMotor_SetTargetRpm(uint8_t index, float target_rpm);
+void DjiMotor_SetLiftCommand(int8_t lift_cmd);
 void DjiMotor_StopAll(void);
 void DjiMotor_RunControl(float dt_s);
 void DjiMotor_OnCanFeedback(uint32_t std_id, const uint8_t data[8]);

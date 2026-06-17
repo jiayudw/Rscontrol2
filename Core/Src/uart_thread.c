@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "chassis.h"
+#include "dji_motor.h"
 #include "motor_shared.h"
 #include "usart.h"
 
@@ -156,13 +157,13 @@ static void UartThread_ParsePositionFrame(const uint8_t payload[UART_COMMAND_FRA
 /* 解析 0xBB 数据帧，并更新 ID6 机械臂位置和底盘速度命令。 */
 static void UartThread_ParseChassisFrame(const uint8_t payload[UART_COMMAND_FRAME_PAYLOAD_SIZE])
 {
-    (void)payload[UART_CHASSIS_LIFT_OFFSET];
     (void)payload[UART_CHASSIS_RESERVED_OFFSET];
 
     float slot6_position = UartThread_ReadLeFloat(&payload[UART_CHASSIS_SLOT6_OFFSET]);
     float chassis_vx = UartThread_ReadLeFloat(&payload[UART_CHASSIS_VX_OFFSET]);
     float chassis_vy = UartThread_ReadLeFloat(&payload[UART_CHASSIS_VY_OFFSET]);
     float chassis_wz = UartThread_ReadLeFloat(&payload[UART_CHASSIS_WZ_OFFSET]);
+    int8_t lift_cmd = (int8_t)payload[UART_CHASSIS_LIFT_OFFSET];
 
     if (!UartThread_IsFiniteCommand(slot6_position) ||
         !UartThread_IsFiniteCommand(chassis_vx) ||
@@ -173,6 +174,7 @@ static void UartThread_ParseChassisFrame(const uint8_t payload[UART_COMMAND_FRAM
 
     UartThread_SetPositionCommand(UART_SLOT6_INDEX, slot6_position);
     Chassis_SetCommand(chassis_vy, chassis_vx, -chassis_wz);
+    DjiMotor_SetLiftCommand(lift_cmd);
 }
 
 /* 解析 0xAB 控制帧，并切换校准模式或普通模式。 */
@@ -307,6 +309,34 @@ static void UartThread_SendMotorStates(void)
             (long)UartThread_FloatToMilli(state->joint_velocity),
             (long)UartThread_FloatToMilli(state->motor_torque),
             (long)UartThread_FloatToDeci(state->temperature)
+        );
+
+        if (len > 0) {
+            if (len > (int)sizeof(text)) {
+                len = (int)sizeof(text);
+            }
+            HAL_UART_Transmit(&huart1, (uint8_t *)text, (uint16_t)len, 5);
+        }
+    }
+
+    for (uint8_t i = 0; i < DJI_MOTOR_COUNT; ++i) {
+        const DjiMotor_t *state = DjiMotor_GetState(i);
+        if (state == 0) {
+            continue;
+        }
+
+        int len = snprintf(
+            text,
+            sizeof(text),
+            "dji %u id %u online %u target_rpm %ld speed_rpm %d current %d out %d temp %u\r\n",
+            (unsigned int)i,
+            (unsigned int)state->id,
+            (unsigned int)state->online,
+            (long)state->target_rpm,
+            (int)state->speed_rpm,
+            (int)state->current_raw,
+            (int)state->output_current,
+            (unsigned int)state->temperature
         );
 
         if (len > 0) {
