@@ -6,12 +6,12 @@ static CAN_HandleTypeDef *motor_hcan = 0;
 
 /* 每个关节的机械零位对应的电机原始角度，单位 rad。 */
 static const float motor_startq_raw_rad[MOTOR_SLOT_COUNT] = {
-    2.487f,
-    4.439f,
-    3.741f,
-    2.155f,
-    -7.015f,
-    0.0f,
+    3.541f,
+    4.447f,
+    3.740f,
+    2.152f,
+    2.960f,
+    2.830f,
     0.0f,
 };
 
