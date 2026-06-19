@@ -2,10 +2,10 @@
 
 #include <string.h>
 
-#define DJI_MOTOR_CURRENT_LIMIT 12000.0f
+#define DJI_MOTOR_CURRENT_LIMIT 16384.0f
 #define DJI_MOTOR_TARGET_RPM_LIMIT 6000.0f
 #define DJI_MOTOR_ONLINE_TIMEOUT_MS 100U
-#define DJI_MOTOR_ZERO_TARGET_RPM 1.0f
+#define DJI_MOTOR_ZERO_TARGET_RPM 3.0f
 #define DJI_LIFT_OUTPUT_RPM 60.0f
 #define DJI_LIFT_GEAR_RATIO 19.0f
 #define DJI_LIFT_TARGET_RPM (DJI_LIFT_OUTPUT_RPM * DJI_LIFT_GEAR_RATIO)
@@ -157,7 +157,7 @@ void DjiMotor_Init(CAN_HandleTypeDef *hcan)
     for (uint8_t i = 0U; i < DJI_MOTOR_COUNT; ++i) {
         dji_motors[i].id = ids[i];
         dji_motors[i].direction = directions[i];
-        Pid_Init(&dji_motors[i].speed_pid, 4.5f, 0.2f, 0.0f, 3000.0f, DJI_MOTOR_CURRENT_LIMIT);
+        Pid_Init(&dji_motors[i].speed_pid, 6.0f, 1.0f, 0.0f, 30000.0f, DJI_MOTOR_CURRENT_LIMIT);
     }
 }
 

@@ -1,6 +1,7 @@
 #include "fsi6_thread.h"
 
 #include "chassis.h"
+#include "dji_motor.h"
 #include "usart.h"
 
 #define FSI6_IBUS_FRAME_SIZE 32U
@@ -9,11 +10,23 @@
 #define FSI6_CHANNEL_COUNT 14U
 #define FSI6_CH_RIGHT_X 0U
 #define FSI6_CH_RIGHT_Y 1U
+/* Old FS-i6 mapping only used CH1/CH2/CH4 for chassis:
+ * CH1 right stick X, CH2 right stick Y, CH4 left stick X.
+ */
+/* #define FSI6_CH_LEFT_Y 2U */
 #define FSI6_CH_LEFT_X 3U
+/* Old tentative lift mapping used CH3 left stick Y:
+ * #define FSI6_CH_LIFT 2U
+ * Standard FS-i6 throttle often does not auto-center, so the active mapping
+ * uses CH5 auxiliary three-position switch instead.
+ */
+#define FSI6_CH_LIFT 4U
 #define FSI6_CHANNEL_MIN 1000.0f
 #define FSI6_CHANNEL_CENTER 1500.0f
 #define FSI6_CHANNEL_MAX 2000.0f
 #define FSI6_CHANNEL_DEADBAND 0.06f
+#define FSI6_LIFT_UP_THRESHOLD 0.35f
+#define FSI6_LIFT_DOWN_THRESHOLD (-0.35f)
 #define FSI6_MAX_VX 1.5f
 #define FSI6_MAX_VY 1.5f
 #define FSI6_MAX_WZ 3.0f
@@ -38,6 +51,7 @@ volatile uint16_t g_fsi6_channels[FSI6_CHANNEL_COUNT];
 volatile float g_fsi6_vx = 0.0f;
 volatile float g_fsi6_vy = 0.0f;
 volatile float g_fsi6_wz = 0.0f;
+volatile int8_t g_fsi6_lift_cmd = 0;
 
 static float Fsi6_NormalizeChannel(uint16_t value)
 {
@@ -62,6 +76,7 @@ static void Fsi6_ApplyChannels(void)
     float right_x = Fsi6_NormalizeChannel(g_fsi6_channels[FSI6_CH_RIGHT_X]);
     float right_y = Fsi6_NormalizeChannel(g_fsi6_channels[FSI6_CH_RIGHT_Y]);
     float left_x = Fsi6_NormalizeChannel(g_fsi6_channels[FSI6_CH_LEFT_X]);
+    float lift = Fsi6_NormalizeChannel(g_fsi6_channels[FSI6_CH_LIFT]);
 
     g_fsi6_vx = right_y * FSI6_MAX_VX;
     g_fsi6_vy = right_x * FSI6_MAX_VY;
@@ -69,6 +84,16 @@ static void Fsi6_ApplyChannels(void)
     g_fsi6_wz = -left_x * FSI6_MAX_WZ;
 
     Chassis_SetCommand(g_fsi6_vx, g_fsi6_vy, g_fsi6_wz);
+
+    if (lift < FSI6_LIFT_DOWN_THRESHOLD) {
+        g_fsi6_lift_cmd = 1;
+    } else if (lift > FSI6_LIFT_UP_THRESHOLD) {
+        g_fsi6_lift_cmd = -1;
+    } else {
+        g_fsi6_lift_cmd = 0;
+    }
+    DjiMotor_SetLiftCommand(g_fsi6_lift_cmd);
+
     fsi6_last_valid_ms = HAL_GetTick();
 }
 
@@ -145,7 +170,9 @@ void Fsi6Thread_Run(void)
         g_fsi6_vx = 0.0f;
         g_fsi6_vy = 0.0f;
         g_fsi6_wz = 0.0f;
+        g_fsi6_lift_cmd = 0;
         Chassis_SetCommand(0.0f, 0.0f, 0.0f);
+        DjiMotor_SetLiftCommand(0);
     }
 }
 

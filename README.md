@@ -41,7 +41,7 @@ uint8 reserved[3]
 
 ### 底盘控制帧
 
-用于控制机械臂 `slot 6`、底盘速度，以及升降台命令。
+用于控制机械臂 `slot 6`、底盘速度，并保留旧升降台命令字段。
 
 ```text
 0xBB + 27 字节 payload + 0x55
@@ -54,7 +54,7 @@ byte 0-3    float slot6_position_rad
 byte 4-7    float vx_m_s
 byte 8-11   float vy_m_s
 byte 12-15  float wz_rad_s
-byte 16     int8  lift_cmd
+byte 16     int8  lift_cmd       旧升降台命令字段，当前固件不再执行
 byte 17-26  uint8 reserved[10]
 ```
 
@@ -68,10 +68,10 @@ byte 17-26  uint8 reserved[10]
 
 - `slot6_position_rad`：已经接入，会写入机械臂 `slot 6` 目标位置
 - `vx_m_s` / `vy_m_s` / `wz_rad_s`：已经接入，会控制麦轮底盘
-- `lift_cmd`：已经接入 CAN2 的 DJI/C620 电机 ID 5，`1` 上升、`-1` 下降、`0` 停止/保持
+- `lift_cmd`：旧 UART 升降台命令字段，当前已经停用，抬升改由 FS-i6/IBUS CH5 控制
 - `reserved[10]`：保留给后续夹爪、升降台位置、模式位、急停位等扩展
 
-升降台使用速度 PID，目标输出轴速度为 `1 转/秒`；按 M3508/C620 的 19:1 减速比换算，电机转子目标约 `1140 rpm`。升降台命令有 `100 ms` 超时保护，需要上位机周期发送 `0xBB` 帧。
+升降台使用速度 PID，目标输出轴速度为 `1 转/秒`；按 M3508/C620 的 19:1 减速比换算，电机转子目标约 `1140 rpm`。FS-i6 辅助三段开关 CH5 低档约 `1000` 时输出 `1` 上升，高档约 `2000` 时输出 `-1` 下降，中档约 `1500` 时输出 `0` 停止/保持。FS-i6 帧和升降台命令都有 `100 ms` 超时保护。
 
 底盘命令有 `100 ms` 超时保护。如果要持续运动，需要上位机周期发送底盘帧，建议 `20 ms` 到 `50 ms` 发一次。
 
@@ -388,7 +388,7 @@ dji_motors[i].speed_pid.integral == 0
 
 ### 上位机协议扩展
 
-当前 `0xBB` 底盘帧已经接入 `lift_cmd`，并预留了 `reserved[10]`，后续可以扩展：
+当前 `0xBB` 底盘帧保留旧 `lift_cmd` 字段，并预留了 `reserved[10]`，后续可以扩展：
 
 ```text
 lift_target_position  升降台目标位置
@@ -408,7 +408,7 @@ checksum              简单校验或 CRC
 
 ### 升降台
 
-当前 `lift_cmd` 已经通过 CAN2 DJI/C620 ID 5 做速度控制，后续还需要补：
+当前升降台已经通过 FS-i6/IBUS CH5 控制 CAN2 DJI/C620 ID 5 做速度控制，后续还需要补：
 
 - 限位开关/零位检测
 - 位置闭环

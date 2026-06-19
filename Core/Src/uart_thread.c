@@ -163,6 +163,7 @@ static void UartThread_ParseChassisFrame(const uint8_t payload[UART_COMMAND_FRAM
     float chassis_vy = UartThread_ReadLeFloat(&payload[UART_CHASSIS_VY_OFFSET]);
     float chassis_wz = UartThread_ReadLeFloat(&payload[UART_CHASSIS_WZ_OFFSET]);
     int8_t lift_cmd = (int8_t)payload[UART_CHASSIS_LIFT_OFFSET];
+    (void)lift_cmd;
 
     if (!UartThread_IsFiniteCommand(slot6_position) ||
         !UartThread_IsFiniteCommand(chassis_vx) ||
@@ -174,7 +175,10 @@ static void UartThread_ParseChassisFrame(const uint8_t payload[UART_COMMAND_FRAM
     UartThread_SetPositionCommand(UART_SLOT6_INDEX, slot6_position);
     /* Chassis translation/turning is now driven by FS-i6 IBUS on USART6. */
     /* Chassis_SetCommand(chassis_vy, chassis_vx, -chassis_wz); */
-    DjiMotor_SetLiftCommand(lift_cmd);
+    /* Old lift control used byte 16 from the 0xBB UART frame:
+     * DjiMotor_SetLiftCommand(lift_cmd);
+     * Lift is now driven by FS-i6 CH5 in fsi6_thread.c.
+     */
 }
 
 /* 解析 0xAB 控制帧，并切换校准模式或普通模式。 */
