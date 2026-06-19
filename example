@@ -1,0 +1,38 @@
+void IBUS_Handle()
+{
+	char txt[16];
+	int i = 0,j = 0;
+	uint16_t channel_buffer[IBUS_MAX_CHANNLES] = {0};
+	
+	if(IBUS_RX_Finish==1)
+	{
+		IBUS_RX_Finish=0;//
+		
+		NVIC_DisableIRQ(USART3_IRQn);//关闭中断
+		
+			if(rx_buffer[0] == IBUS_start1 && rx_buffer[1] == IBUS_start2)
+			{
+				checksum_cal = 0xffff - rx_buffer[0] - rx_buffer[1];
+ 
+				for( i = 0; i < IBUS_MAX_CHANNLES; i++)
+				{
+					channel_buffer[i] = (uint16_t)(rx_buffer[i * 2 + 3] << 8 | rx_buffer[i * 2 + 2]);
+					checksum_cal = checksum_cal - rx_buffer[i * 2 + 3] - rx_buffer[i * 2 + 2];
+				}
+ 
+				checksum_ibus = rx_buffer[31] << 8 | rx_buffer[30];
+ 
+				if(checksum_cal == checksum_ibus)   //进行数值校对，校对成功后装入
+				{
+					for(j = 0; j < IBUS_USER_CHANNELS; j++)
+					{
+						channel[j] = channel_buffer[j];
+					}
+				}
+			}
+			
+		NVIC_EnableIRQ(USART3_IRQn);//打开中断
+		
+	}
+ 
+}
