@@ -58,6 +58,8 @@
 extern CAN_HandleTypeDef hcan1;
 extern CAN_HandleTypeDef hcan2;
 extern UART_HandleTypeDef huart1;
+extern UART_HandleTypeDef huart6;
+volatile uint32_t g_usart6_irq_count = 0U;
 /* USER CODE BEGIN EV */
 
 /* USER CODE END EV */
@@ -240,6 +242,15 @@ void USART1_IRQHandler(void)
   /* USER CODE BEGIN USART1_IRQn 1 */
 
   /* USER CODE END USART1_IRQn 1 */
+}
+
+/**
+  * @brief This function handles USART6 global interrupt.
+  */
+void USART6_IRQHandler(void)
+{
+  g_usart6_irq_count++;
+  HAL_UART_IRQHandler(&huart6);
 }
 
 /* USER CODE BEGIN 1 */

@@ -5,6 +5,7 @@
 
 #include "chassis.h"
 #include "dji_motor.h"
+#include "fsi6_thread.h"
 #include "motor_shared.h"
 #include "usart.h"
 
@@ -171,7 +172,8 @@ static void UartThread_ParseChassisFrame(const uint8_t payload[UART_COMMAND_FRAM
     }
 
     UartThread_SetPositionCommand(UART_SLOT6_INDEX, slot6_position);
-    Chassis_SetCommand(chassis_vy, chassis_vx, -chassis_wz);
+    /* Chassis translation/turning is now driven by FS-i6 IBUS on USART6. */
+    /* Chassis_SetCommand(chassis_vy, chassis_vx, -chassis_wz); */
     DjiMotor_SetLiftCommand(lift_cmd);
 }
 
@@ -378,7 +380,10 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
         g_uart_last_rx_byte = rx_byte;
         UartThread_PushByte(rx_byte);
         HAL_UART_Receive_IT(&huart1, &rx_byte, 1);
+        return;
     }
+
+    Fsi6Thread_OnRxCplt(huart);
 }
 
 void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
@@ -387,5 +392,8 @@ void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
         g_uart_error_count++;
         g_uart_last_error = huart->ErrorCode;
         HAL_UART_Receive_IT(&huart1, &rx_byte, 1);
+        return;
     }
+
+    Fsi6Thread_OnError(huart);
 }

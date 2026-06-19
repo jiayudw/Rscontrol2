@@ -25,6 +25,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "chassis.h"
+#include "fsi6_thread.h"
 #include "motor_thread.h"
 #include "uart_thread.h"
 /* USER CODE END Includes */
@@ -93,6 +94,7 @@ int main(void)
   MX_CAN1_Init();
   MX_CAN2_Init();
   MX_USART1_UART_Init();
+  MX_USART6_UART_Init();
   /* USER CODE BEGIN 2 */
   // 1. 初始化过滤器
   CAN1_Filter_Init();
@@ -109,6 +111,7 @@ int main(void)
   MotorThread_Init(&hcan1);
   Chassis_Init(&hcan2);
   UartThread_Init();
+  Fsi6Thread_Init();
   uint32_t last_chassis_ms = HAL_GetTick();
   uint32_t last_uart_ms = HAL_GetTick();
   uint32_t last_motor_ms = HAL_GetTick();
@@ -125,6 +128,7 @@ int main(void)
 
     if ((now - last_uart_ms) >= UART_THREAD_PERIOD_MS) {
       UartThread_Run();
+      Fsi6Thread_Run();
       last_uart_ms += UART_THREAD_PERIOD_MS;
     }
 
