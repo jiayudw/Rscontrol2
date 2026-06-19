@@ -25,8 +25,6 @@
 #define UART_CHASSIS_RESERVED_OFFSET 17U
 #define UART_SLOT6_INDEX 6U
 #define UART_COMMAND_SPEED 0.0f
-#define UART_COMMAND_KP 1.1f
-#define UART_COMMAND_KD 0.1f
 #define UART_COMMAND_TORQUE 0.0f
 #define UART_FRAME_TYPE_NONE 0U
 #define UART_FRAME_TYPE_POSITION 1U
@@ -129,8 +127,8 @@ static void UartThread_SetPositionCommand(uint8_t index, float position)
         index,
         position,
         UART_COMMAND_SPEED,
-        UART_COMMAND_KP,
-        UART_COMMAND_KD,
+        g_motor_command_kp[index],
+        g_motor_command_kd[index],
         UART_COMMAND_TORQUE
     );
 }

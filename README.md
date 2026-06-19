@@ -449,3 +449,12 @@ J-Link 烧录：
 ```bash
 JLinkExe -device STM32F407IG -if SWD -speed 1000 -autoconnect 1 -CommanderScript flash.jlink
 ```
+
+
+
+10 0.3
+50 0.2
+5 0.2
+10 0.15
+20 0.5
+5 0.2

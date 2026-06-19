@@ -53,6 +53,9 @@ typedef struct {
 extern volatile MotorCommand_t g_motor_commands[MOTOR_SLOT_COUNT];
 extern volatile MotorState_t g_motor_states[MOTOR_SLOT_COUNT];
 extern volatile float g_motor_zero_offsets[MOTOR_SLOT_COUNT];
+extern volatile float g_motor_position_error[MOTOR_SLOT_COUNT];
+extern volatile float g_motor_command_kp[MOTOR_SLOT_COUNT];
+extern volatile float g_motor_command_kd[MOTOR_SLOT_COUNT];
 extern volatile uint8_t g_motor_calibration_mode;
 
 extern volatile float g_debug_target_position;

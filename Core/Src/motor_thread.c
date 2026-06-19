@@ -175,4 +175,5 @@ void MotorThread_OnCanFeedback(uint32_t ext_id, uint8_t data[8])
     state->is_enabled = config->enabled;
     state->is_valid = 1U;
     state->last_update_ms = HAL_GetTick();
+    g_motor_position_error[index] = g_motor_commands[index].target_position - joint_position;
 }
