@@ -4,6 +4,20 @@
 
 static CAN_HandleTypeDef *motor_hcan = 0;
 
+
+/* ---- RS 电机状态机 ---- */
+#define RS_MOTOR_FEEDBACK_TIMEOUT_MS 200U
+#define RS_MOTOR_ENABLE_RETRY_MS    200U
+
+static RSMotorState_t rs_motor_state[MOTOR_SLOT_COUNT];
+static uint32_t rs_motor_last_enable_tick[MOTOR_SLOT_COUNT];
+
+volatile uint8_t g_rs_motor_state[MOTOR_SLOT_COUNT];
+volatile uint32_t g_rs_motor_enable_count = 0U;
+volatile uint32_t g_rs_motor_timeout_count = 0U;
+volatile uint32_t g_rs_motor_active_count = 0U;
+/* ------------------------ */
+
 /* 每个关节的机械零位对应的电机原始角度，单位 rad。 */
 static const float motor_startq_raw_rad[MOTOR_SLOT_COUNT] = {
     3.541f,
@@ -62,24 +76,24 @@ static HAL_StatusTypeDef MotorThread_SendFrame(CAN_TxHeaderTypeDef *header, uint
     return HAL_CAN_AddTxMessage(motor_hcan, header, data, &mailbox);
 }
 
-/* 给所有启用的 RS 电机发送使能命令。 */
-static void MotorThread_EnableAll(void)
+/* 按周期向指定 RS 电机发送使能帧（非阻塞）。 */
+static void MotorThread_HandleEnable(uint8_t index)
 {
+    uint32_t now = HAL_GetTick();
+
+    if ((now - rs_motor_last_enable_tick[index]) < RS_MOTOR_ENABLE_RETRY_MS) {
+        return;
+    }
+
     CAN_TxHeaderTypeDef header;
     uint8_t data[8];
+    RS_Motor_BuildEnableFrame(motor_configs[index].can_id, &header, data);
+    MotorThread_SendFrame(&header, data);
 
-    /* 上电后给每个启用的 RS 电机重复发使能帧，提高启动成功率。 */
-    for (uint8_t i = 0; i < MOTOR_SLOT_COUNT; ++i) {
-        if (!motor_configs[i].enabled) {
-            continue;
-        }
-
-        for (uint8_t retry = 0; retry < 5U; ++retry) {
-            RS_Motor_BuildEnableFrame(motor_configs[i].can_id, &header, data);
-            MotorThread_SendFrame(&header, data);
-            HAL_Delay(10);
-        }
-    }
+    rs_motor_last_enable_tick[index] = now;
+    rs_motor_state[index] = RS_MOTOR_STATE_ENABLING;
+    g_rs_motor_state[index] = (uint8_t)RS_MOTOR_STATE_ENABLING;
+    g_rs_motor_enable_count++;
 }
 
 /* 初始化 RS 电机线程、零点配置和共享状态。 */
@@ -89,8 +103,11 @@ void MotorThread_Init(CAN_HandleTypeDef *hcan)
     MotorThread_ApplyStartqOffsets();
     MotorShared_Init(motor_configs, MOTOR_SLOT_COUNT);
 
-    if (motor_hcan != 0) {
-        MotorThread_EnableAll();
+    /* 初始化状态机：所有电机从 INIT 开始，由 Run10ms 周期重试使能 */
+    for (uint8_t i = 0; i < MOTOR_SLOT_COUNT; ++i) {
+        rs_motor_state[i] = RS_MOTOR_STATE_INIT;
+        rs_motor_last_enable_tick[i] = 0U;
+        g_rs_motor_state[i] = (uint8_t)RS_MOTOR_STATE_INIT;
     }
 }
 
@@ -100,7 +117,7 @@ uint8_t MotorThread_GetMotorCount(void)
     return MOTOR_SLOT_COUNT;
 }
 
-/* 每 10ms 将共享命令转换为 RS 电机 CAN 控制帧并下发。 */
+/* 每 10ms 按状态机下发使能帧或 MIT 控制帧。 */
 void MotorThread_Run10ms(void)
 {
     CAN_TxHeaderTypeDef header;
@@ -110,11 +127,37 @@ void MotorThread_Run10ms(void)
         return;
     }
 
+    uint32_t now = HAL_GetTick();
+    uint32_t active_count = 0U;
+
     for (uint8_t i = 0; i < MOTOR_SLOT_COUNT; ++i) {
         const MotorConfig_t *config = &motor_configs[i];
-        volatile MotorCommand_t *command = &g_motor_commands[i];
 
-        if (!config->enabled || !command->enabled) {
+        if (!config->enabled) {
+            continue;
+        }
+
+        /* 活跃电机超时检测：长时间未收到反馈则认为断电/离线 */
+        if (rs_motor_state[i] == RS_MOTOR_STATE_ACTIVE) {
+            if ((now - g_motor_states[i].last_update_ms) > RS_MOTOR_FEEDBACK_TIMEOUT_MS) {
+                rs_motor_state[i] = RS_MOTOR_STATE_TIMEOUT;
+                g_rs_motor_state[i] = (uint8_t)RS_MOTOR_STATE_TIMEOUT;
+                g_rs_motor_timeout_count++;
+                g_motor_states[i].is_valid = 0U;
+            }
+        }
+
+        /* 非活跃电机：周期尝试发送使能帧 */
+        if (rs_motor_state[i] != RS_MOTOR_STATE_ACTIVE) {
+            MotorThread_HandleEnable(i);
+            continue;
+        }
+
+        active_count++;
+
+        /* 活跃电机：检查上层是否允许下发控制帧 */
+        volatile MotorCommand_t *command = &g_motor_commands[i];
+        if (!command->enabled) {
             continue;
         }
 
@@ -139,6 +182,8 @@ void MotorThread_Run10ms(void)
         );
         MotorThread_SendFrame(&header, data);
     }
+
+    g_rs_motor_active_count = active_count;
 }
 
 /* 解析 RS 电机 CAN 反馈帧，并更新共享电机状态。 */
@@ -176,4 +221,10 @@ void MotorThread_OnCanFeedback(uint32_t ext_id, uint8_t data[8])
     state->is_valid = 1U;
     state->last_update_ms = HAL_GetTick();
     g_motor_position_error[index] = g_motor_commands[index].target_position - joint_position;
+
+    /* 首次收到反馈或从超时恢复：切换到活跃状态 */
+    if (rs_motor_state[index] != RS_MOTOR_STATE_ACTIVE) {
+        rs_motor_state[index] = RS_MOTOR_STATE_ACTIVE;
+        g_rs_motor_state[index] = (uint8_t)RS_MOTOR_STATE_ACTIVE;
+    }
 }

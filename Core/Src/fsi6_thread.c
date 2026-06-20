@@ -31,6 +31,7 @@
 #define FSI6_MAX_VY 1.5f
 #define FSI6_MAX_WZ 3.0f
 #define FSI6_TIMEOUT_MS 100U
+#define FSI6_RX_WATCHDOG_MS 2000U
 
 static uint8_t fsi6_rx_byte = 0U;
 static uint8_t fsi6_frame[FSI6_IBUS_FRAME_SIZE];
@@ -156,6 +157,16 @@ static void Fsi6_PushByte(uint8_t data)
 
 void Fsi6Thread_Init(void)
 {
+    /* 先中止任何残留的 RX 传输，并刷新 USART6 硬件缓冲区 */
+    (void)HAL_UART_AbortReceive_IT(&huart6);
+    __HAL_UART_CLEAR_PEFLAG(&huart6);
+
+    /* 启动单字节中断接收，失败则重试一次 */
+    if (HAL_UART_Receive_IT(&huart6, &fsi6_rx_byte, 1U) != HAL_OK) {
+        (void)HAL_UART_AbortReceive_IT(&huart6);
+        __HAL_UART_CLEAR_PEFLAG(&huart6);
+        HAL_Delay(1);
+    }
     g_fsi6_receive_start_status = (uint32_t)HAL_UART_Receive_IT(&huart6, &fsi6_rx_byte, 1U);
     g_fsi6_last_uart_state = (uint32_t)huart6.gState;
     g_fsi6_last_uart_rx_state = (uint32_t)huart6.RxState;
@@ -164,8 +175,26 @@ void Fsi6Thread_Init(void)
 
 void Fsi6Thread_Run(void)
 {
+    static uint32_t last_rx_irq_count = 0U;
+    static uint32_t last_rx_check_ms = 0U;
+
+    /* RX 看门狗：如果 2 秒内没收到任何字节，强制重新初始化 USART6 接收 */
+    uint32_t now = HAL_GetTick();
+    if (last_rx_check_ms == 0U) {
+        last_rx_check_ms = now;
+        last_rx_irq_count = g_fsi6_rx_irq_count;
+    } else if ((now - last_rx_check_ms) > FSI6_RX_WATCHDOG_MS) {
+        if (g_fsi6_rx_irq_count == last_rx_irq_count && g_fsi6_valid_frame_count == 0U) {
+            (void)HAL_UART_AbortReceive_IT(&huart6);
+            __HAL_UART_CLEAR_PEFLAG(&huart6);
+            g_fsi6_receive_restart_status = (uint32_t)HAL_UART_Receive_IT(&huart6, &fsi6_rx_byte, 1U);
+        }
+        last_rx_check_ms = now;
+        last_rx_irq_count = g_fsi6_rx_irq_count;
+    }
+
     if (fsi6_last_valid_ms != 0U &&
-        (HAL_GetTick() - fsi6_last_valid_ms) > FSI6_TIMEOUT_MS) {
+        (now - fsi6_last_valid_ms) > FSI6_TIMEOUT_MS) {
         fsi6_last_valid_ms = 0U;
         g_fsi6_vx = 0.0f;
         g_fsi6_vy = 0.0f;
@@ -201,5 +230,9 @@ void Fsi6Thread_OnError(UART_HandleTypeDef *huart)
     g_fsi6_last_uart_rx_state = (uint32_t)huart6.RxState;
     g_fsi6_last_uart_error = huart->ErrorCode;
     fsi6_frame_pos = 0U;
+
+    /* 先中止当前传输，确保 HAL 状态机完全复位后再重启 */
+    (void)HAL_UART_AbortReceive_IT(&huart6);
+    __HAL_UART_CLEAR_PEFLAG(&huart6);
     g_fsi6_receive_restart_status = (uint32_t)HAL_UART_Receive_IT(&huart6, &fsi6_rx_byte, 1U);
 }
