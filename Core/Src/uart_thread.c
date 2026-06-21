@@ -36,6 +36,7 @@
 #define UART_CONTROL_TELEMETRY_OFF 2U
 #define UART_CONTROL_TELEMETRY_ON 3U
 #define UART_TELEMETRY_PERIOD_MS 200U
+#define UART_RX_WATCHDOG_MS 2000U
 
 /* UART 接收中断只收 1 字节，这里用环形缓冲把中断和主循环解耦。 */
 static volatile uint8_t rx_buffer[UART_RX_BUFFER_SIZE];
@@ -353,23 +354,48 @@ static void UartThread_SendMotorStates(void)
     }
 }
 
-/* 启动 USART1 的单字节中断接收。 */
 void UartThread_Init(void)
 {
+    /* 先中止任何残留的 RX 传输，并刷新 USART1 硬件缓冲区 */
+    (void)HAL_UART_AbortReceive_IT(&huart1);
+    __HAL_UART_CLEAR_PEFLAG(&huart1);
+
+    /* 启动单字节中断接收，失败则重试一次 */
+    if (HAL_UART_Receive_IT(&huart1, &rx_byte, 1) != HAL_OK) {
+        (void)HAL_UART_AbortReceive_IT(&huart1);
+        __HAL_UART_CLEAR_PEFLAG(&huart1);
+        HAL_Delay(1);
+    }
     HAL_UART_Receive_IT(&huart1, &rx_byte, 1);
 }
 
 /* 处理 UART 接收缓冲区中的数据，并按周期发送电机状态遥测。 */
 void UartThread_Run(void)
 {
+    static uint32_t last_rx_irq_count = 0U;
+    static uint32_t last_rx_check_ms = 0U;
     static uint32_t last_telemetry_ms = 0U;
     uint8_t data = 0;
+
+    /* RX 看门狗：如果 2 秒内没收到任何字节，强制重新初始化 USART1 接收 */
+    uint32_t now = HAL_GetTick();
+    if (last_rx_check_ms == 0U) {
+        last_rx_check_ms = now;
+        last_rx_irq_count = g_uart_rx_irq_count;
+    } else if ((now - last_rx_check_ms) > UART_RX_WATCHDOG_MS) {
+        if (g_uart_rx_irq_count == last_rx_irq_count) {
+            (void)HAL_UART_AbortReceive_IT(&huart1);
+            __HAL_UART_CLEAR_PEFLAG(&huart1);
+            HAL_UART_Receive_IT(&huart1, &rx_byte, 1);
+        }
+        last_rx_check_ms = now;
+        last_rx_irq_count = g_uart_rx_irq_count;
+    }
 
     while (UartThread_PopByte(&data)) {
         UartThread_ProcessByte(data);
     }
 
-    uint32_t now = HAL_GetTick();
     if (telemetry_enabled && (now - last_telemetry_ms) >= UART_TELEMETRY_PERIOD_MS) {
         UartThread_SendMotorStates();
         last_telemetry_ms = now;
@@ -396,6 +422,9 @@ void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
     if (huart->Instance == USART1) {
         g_uart_error_count++;
         g_uart_last_error = huart->ErrorCode;
+        /* 先中止当前传输，确保 HAL 状态机完全复位后再重启 */
+        (void)HAL_UART_AbortReceive_IT(&huart1);
+        __HAL_UART_CLEAR_PEFLAG(&huart1);
         HAL_UART_Receive_IT(&huart1, &rx_byte, 1);
         return;
     }

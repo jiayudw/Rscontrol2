@@ -16,6 +16,7 @@ volatile uint8_t g_rs_motor_state[MOTOR_SLOT_COUNT];
 volatile uint32_t g_rs_motor_enable_count = 0U;
 volatile uint32_t g_rs_motor_timeout_count = 0U;
 volatile uint32_t g_rs_motor_active_count = 0U;
+static volatile HAL_StatusTypeDef g_last_tx_status = HAL_OK;
 /* ------------------------ */
 
 /* 每个关节的机械零位对应的电机原始角度，单位 rad。 */
@@ -180,7 +181,7 @@ void MotorThread_Run10ms(void)
             &header,
             data
         );
-        MotorThread_SendFrame(&header, data);
+        g_last_tx_status=MotorThread_SendFrame(&header, data);
     }
 
     g_rs_motor_active_count = active_count;
