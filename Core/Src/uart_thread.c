@@ -172,7 +172,8 @@ static void UartThread_ParseChassisFrame(const uint8_t payload[UART_COMMAND_FRAM
         return;
     }
 
-    UartThread_SetPositionCommand(UART_SLOT6_INDEX, slot6_position);
+    /* 末端电机已改为遥控器 CH6 控制，这里不再通过 UART 下发 */
+    /* UartThread_SetPositionCommand(UART_SLOT6_INDEX, slot6_position); */
     /* Chassis translation/turning is now driven by FS-i6 IBUS on USART6. */
     /* Chassis_SetCommand(chassis_vy, chassis_vx, -chassis_wz); */
     /* Old lift control used byte 16 from the 0xBB UART frame:

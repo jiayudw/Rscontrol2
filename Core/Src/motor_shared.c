@@ -10,8 +10,8 @@ volatile float g_motor_command_kp[MOTOR_SLOT_COUNT] = {
     5.0f,
     10.0f,
     20.0f,
-    5.0f,
-    1.1f,
+    10.0f,
+    2.5f,
 };
 volatile float g_motor_command_kd[MOTOR_SLOT_COUNT] = {
     0.3f,

@@ -2,6 +2,7 @@
 
 #include "chassis.h"
 #include "dji_motor.h"
+#include "motor_shared.h"
 #include "usart.h"
 
 #define FSI6_IBUS_FRAME_SIZE 32U
@@ -21,6 +22,10 @@
  * uses CH5 auxiliary three-position switch instead.
  */
 #define FSI6_CH_LIFT 4U
+#define FSI6_CH_GRIPPER 5U
+#define FSI6_GRIPPER_MOTOR_INDEX 6U
+#define FSI6_GRIPPER_OPEN_POSITION 5.4f
+#define FSI6_GRIPPER_CLOSE_POSITION (4.3f)
 #define FSI6_CHANNEL_MIN 1000.0f
 #define FSI6_CHANNEL_CENTER 1500.0f
 #define FSI6_CHANNEL_MAX 2000.0f
@@ -94,6 +99,21 @@ static void Fsi6_ApplyChannels(void)
         g_fsi6_lift_cmd = 0;
     }
     DjiMotor_SetLiftCommand(g_fsi6_lift_cmd);
+    /* 通道6：两档开关控制机械臂末端开合（开=0, 合=-1.4） */
+    {
+        uint16_t gripper_raw = g_fsi6_channels[FSI6_CH_GRIPPER];
+        float gripper_target = (gripper_raw > 1500U)
+            ? FSI6_GRIPPER_CLOSE_POSITION
+            : FSI6_GRIPPER_OPEN_POSITION;
+        MotorShared_SetCommand(
+            FSI6_GRIPPER_MOTOR_INDEX,
+            gripper_target,
+            0.0f,
+            g_motor_command_kp[FSI6_GRIPPER_MOTOR_INDEX],
+            g_motor_command_kd[FSI6_GRIPPER_MOTOR_INDEX],
+            0.0f
+        );
+    }
 
     fsi6_last_valid_ms = HAL_GetTick();
 }
