@@ -1,8 +1,8 @@
 #include "fsi6_thread.h"
 
 #include "chassis.h"
-#include "dji_motor.h"
 #include "motor_shared.h"
+#include "rs_lift_motor.h"
 #include "usart.h"
 
 #define FSI6_IBUS_FRAME_SIZE 32U
@@ -98,7 +98,7 @@ static void Fsi6_ApplyChannels(void)
     } else {
         g_fsi6_lift_cmd = 0;
     }
-    DjiMotor_SetLiftCommand(g_fsi6_lift_cmd);
+    RsLiftMotor_SetCommand(g_fsi6_lift_cmd);
     /* 通道6：两档开关控制机械臂末端开合（开=0, 合=-1.4） */
     {
         uint16_t gripper_raw = g_fsi6_channels[FSI6_CH_GRIPPER];
@@ -221,7 +221,7 @@ void Fsi6Thread_Run(void)
         g_fsi6_wz = 0.0f;
         g_fsi6_lift_cmd = 0;
         Chassis_SetCommand(0.0f, 0.0f, 0.0f);
-        DjiMotor_SetLiftCommand(0);
+        RsLiftMotor_SetCommand(0);
     }
 }
 

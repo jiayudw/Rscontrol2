@@ -7,6 +7,7 @@
 #include "dji_motor.h"
 #include "fsi6_thread.h"
 #include "motor_shared.h"
+#include "rs_lift_motor.h"
 #include "usart.h"
 
 #define UART_RX_BUFFER_SIZE 128
@@ -178,7 +179,7 @@ static void UartThread_ParseChassisFrame(const uint8_t payload[UART_COMMAND_FRAM
     /* Chassis translation/turning is now driven by FS-i6 IBUS on USART6. */
     /* Chassis_SetCommand(chassis_vy, chassis_vx, -chassis_wz); */
     /* Old lift control used byte 16 from the 0xBB UART frame:
-     * DjiMotor_SetLiftCommand(lift_cmd);
+     * RsLiftMotor_SetCommand(lift_cmd);
      * Lift is now driven by FS-i6 CH5 in fsi6_thread.c.
      */
 }
@@ -343,6 +344,29 @@ static void UartThread_SendMotorStates(void)
             (int)state->current_raw,
             (int)state->output_current,
             (unsigned int)state->temperature
+        );
+
+        if (len > 0) {
+            if (len > (int)sizeof(text)) {
+                len = (int)sizeof(text);
+            }
+            HAL_UART_Transmit(&huart1, (uint8_t *)text, (uint16_t)len, 5);
+        }
+    }
+
+    const RsLiftMotor_t *lift = RsLiftMotor_GetState();
+    if (lift != 0) {
+        int len = snprintf(
+            text,
+            sizeof(text),
+            "rs_lift id %u online %u target_mrad_s %ld speed_mrad_s %ld raw_mrad %ld tau_mNm %ld temp_c10 %ld\r\n",
+            (unsigned int)lift->id,
+            (unsigned int)lift->online,
+            (long)UartThread_FloatToMilli(lift->target_speed_rad_s),
+            (long)UartThread_FloatToMilli(lift->velocity_rad_s),
+            (long)UartThread_FloatToMilli(lift->position_rad),
+            (long)UartThread_FloatToMilli(lift->torque_nm),
+            (long)UartThread_FloatToDeci(lift->temperature_c)
         );
 
         if (len > 0) {

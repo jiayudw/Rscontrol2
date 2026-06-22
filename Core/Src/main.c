@@ -27,6 +27,7 @@
 #include "chassis.h"
 #include "fsi6_thread.h"
 #include "motor_thread.h"
+#include "rs_lift_motor.h"
 #include "uart_thread.h"
 /* USER CODE END Includes */
 
@@ -109,6 +110,7 @@ int main(void)
   HAL_CAN_ActivateNotification(&hcan2, CAN_IT_RX_FIFO0_MSG_PENDING);
 
   MotorThread_Init(&hcan1);
+  RsLiftMotor_Init(&hcan1);
   Chassis_Init(&hcan2);
   UartThread_Init();
   Fsi6Thread_Init();
@@ -134,6 +136,7 @@ int main(void)
 
     if ((now - last_motor_ms) >= MOTOR_THREAD_PERIOD_MS) {
       MotorThread_Run10ms();
+      RsLiftMotor_RunControl();
       last_motor_ms += MOTOR_THREAD_PERIOD_MS;
     }
 

@@ -49,14 +49,14 @@ static int Chassis_IsFinite(float value)
     return value == value && value < 1000000.0f && value > -1000000.0f;
 }
 
-/* 将轮子线速度换算为电机目标转速 rpm。 */
+/* 将轮子线速度换算为 DJI 电机目标转速 rpm。 */
 static float Chassis_WheelLinearToMotorRpm(float wheel_speed_m_s)
 {
     float wheel_rad_s = wheel_speed_m_s / CHASSIS_WHEEL_RADIUS_M;
     return wheel_rad_s * CHASSIS_RAD_S_TO_RPM * CHASSIS_GEAR_RATIO;
 }
 
-/* 初始化底盘命令状态和 DJI 电机控制模块。 */
+/* 初始化底盘命令状态和 CAN2 上的 DJI 底盘电机控制模块。 */
 void Chassis_Init(CAN_HandleTypeDef *hcan)
 {
     chassis_command.vx = 0.0f;
@@ -96,7 +96,7 @@ void Chassis_Stop(void)
     DjiMotor_StopAll();
 }
 
-/* 执行底盘运动学逆解和 DJI 电机速度闭环控制。 */
+/* 执行底盘运动学逆解，并把四个轮子的目标 rpm 交给 DJI 底盘电机模块。 */
 void Chassis_Run(void)
 {
     uint32_t now = HAL_GetTick();

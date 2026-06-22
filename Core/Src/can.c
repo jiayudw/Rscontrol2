@@ -200,8 +200,9 @@ void HAL_CAN_MspDeInit(CAN_HandleTypeDef* canHandle)
 }
 
 /* USER CODE BEGIN 1 */
-#include "dji_motor.h"
 #include "motor_thread.h"
+#include "dji_motor.h"
+#include "rs_lift_motor.h"
 
 // 配置 CAN1 全通滤波器，接收 RS 电机扩展帧。
 void CAN1_Filter_Init(void)
@@ -244,7 +245,9 @@ CAN_RxHeaderTypeDef rx_header;
 uint8_t rx_data[8];
 
 volatile uint32_t g_can2_rx_count = 0U;
+volatile uint32_t g_can2_ext_rx_count = 0U;
 volatile uint32_t g_can2_std_rx_count = 0U;
+volatile uint32_t g_can2_last_ext_id = 0U;
 volatile uint32_t g_can2_last_std_id = 0U;
 volatile uint32_t g_can1_rx_count = 0U;
 volatile uint32_t g_can1_ext_rx_count = 0U;
@@ -265,6 +268,7 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
                 g_can1_ext_rx_count++;
                 g_can1_last_ext_id = rx_header.ExtId;
                 MotorThread_OnCanFeedback(rx_header.ExtId, rx_data);
+                RsLiftMotor_OnCanFeedback(rx_header.ExtId, rx_data);
             }
             else if (rx_header.IDE == CAN_ID_STD)
             {
@@ -278,7 +282,12 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
         if (HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO0, &rx_header, rx_data) == HAL_OK)
         {
             g_can2_rx_count++;
-            if (rx_header.IDE == CAN_ID_STD)
+            if (rx_header.IDE == CAN_ID_EXT)
+            {
+                g_can2_ext_rx_count++;
+                g_can2_last_ext_id = rx_header.ExtId;
+            }
+            else if (rx_header.IDE == CAN_ID_STD)
             {
                 g_can2_std_rx_count++;
                 g_can2_last_std_id = rx_header.StdId;
@@ -288,4 +297,3 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
     }
 }
 /* USER CODE END 1 */
-

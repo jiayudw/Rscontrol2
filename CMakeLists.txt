@@ -49,6 +49,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     Core/Src/rs_motor.c
     Core/Src/pid.c
     Core/Src/dji_motor.c
+    Core/Src/rs_lift_motor.c
     Core/Src/chassis.c
     Core/Src/motor_shared.c
     Core/Src/motor_thread.c
