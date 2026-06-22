@@ -11,7 +11,7 @@ volatile float g_motor_command_kp[MOTOR_SLOT_COUNT] = {
     10.0f,
     20.0f,
     10.0f,
-    2.5f,
+    6.0f,
 };
 volatile float g_motor_command_kd[MOTOR_SLOT_COUNT] = {
     0.3f,
@@ -20,7 +20,7 @@ volatile float g_motor_command_kd[MOTOR_SLOT_COUNT] = {
     0.15f,
     0.5f,
     0.2f,
-    0.1f,
+    0.3f,
 };
 volatile uint8_t g_motor_calibration_mode = 0U;
 

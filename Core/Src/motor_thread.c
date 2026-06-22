@@ -23,8 +23,8 @@ static volatile HAL_StatusTypeDef g_last_tx_status = HAL_OK;
 static const float motor_startq_raw_rad[MOTOR_SLOT_COUNT] = {
     3.541f,
     4.447f,
-    3.740f,
-    2.152f,
+    3.860f,
+    2.341f,
     2.960f,
     2.830f,
     0.0f,
