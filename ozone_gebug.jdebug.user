@@ -1,28 +1,34 @@
 
 
-
-Breakpoint=/home/skysky/workspace/Rscontrol2/Core/Src/motor_thread.c:187, State=BP_STATE_DISABLED
 GraphedExpression="g_motor_position_error[1]", Color=#e56a6f
 GraphedExpression="g_motor_position_error[5]", Color=#35792b, Show=0
 GraphedExpression="g_motor_position_error[4]", Color=#769dda, Show=0
 GraphedExpression="g_motor_position_error[2]", Color=#b14f0d, Show=0
 GraphedExpression="g_motor_position_error[6]", Color=#b3c38e, Show=0
 GraphedExpression="g_motor_position_error[3]", Color=#ab7b05
+GraphedExpression="g_last_tx_status", DisplayFormat=DISPLAY_FORMAT_DEC, Color=#7fd3b7, Show=0
+GraphedExpression="(g_motor_states[0]).mode_state", DisplayFormat=DISPLAY_FORMAT_DEC, Color=#50328f, Show=0
+GraphedExpression="41 943 549", DisplayFormat=DISPLAY_FORMAT_DEC, Color=#c587a5, Show=0
+GraphedExpression="g_can1_last_ext_id", DisplayFormat=DISPLAY_FORMAT_DEC, Color=#999401, Show=0
+GraphedExpression="hcan1.ErrorCode", DisplayFormat=DISPLAY_FORMAT_DEC, Color=#aa1d24, Show=0
+GraphedExpression="g_rs_motor_enable_count", DisplayFormat=DISPLAY_FORMAT_DEC, Color=#86d27e, Show=0
 OpenDocument="main.c", FilePath="/home/skysky/workspace/Rscontrol2/Core/Src/main.c", Line=51
-OpenDocument="motor_thread.c", FilePath="/home/skysky/workspace/Rscontrol2/Core/Src/motor_thread.c", Line=129
-OpenDocument="stm32f4xx_hal_can.c", FilePath="/home/skysky/workspace/Rscontrol2/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_can.c", Line=1391
+OpenDocument="motor_thread.c", FilePath="/home/skysky/workspace/Rscontrol2/Core/Src/motor_thread.c", Line=87
+OpenDocument="motor_shared.h", FilePath="/home/skysky/workspace/Rscontrol2/Core/Inc/motor_shared.h", Line=0
+OpenDocument="stm32f4xx_hal.c", FilePath="/home/skysky/workspace/Rscontrol2/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal.c", Line=307
+OpenDocument="stm32f4xx_hal_can.c", FilePath="/home/skysky/workspace/Rscontrol2/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_can.c", Line=1529
 OpenDocument="uart_thread.c", FilePath="/home/skysky/workspace/Rscontrol2/Core/Src/uart_thread.c", Line=0
 OpenDocument="dji_motor.c", FilePath="/home/skysky/workspace/Rscontrol2/Core/Src/dji_motor.c", Line=75
 OpenToolbar="Debug", Floating=0, x=0, y=0
-OpenWindow="Source Files", DockArea=LEFT, x=0, y=0, w=854, h=372, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=0
-OpenWindow="Watched Data 1", DockArea=LEFT, x=0, y=1, w=854, h=555, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=0
-OpenWindow="Data Sampling", DockArea=LEFT, x=0, y=2, w=854, h=431, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=0, VisibleTab=0, UniformSampleSpacing=0
-OpenWindow="Timeline", DockArea=RIGHT, x=0, y=0, w=836, h=1349, TabPos=1, TopOfStack=1, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=1, DataPaneShown=1, PowerPaneShown=0, CodePaneShown=0, PinCursor="Cursor Movable", TimePerDiv="2 s / Div", TimeStampFormat="Time", DataGraphDrawAsPoints=0, DataGraphLegendShown=1, DataGraphUniformSampleSpacing=0, DataGraphLegendPosition="0;533", DataGraphShowNamesAtCursor=0, PowerGraphDrawAsPoints=0, PowerGraphLegendShown=0, PowerGraphAvgFilterTime=Off, PowerGraphAvgFilterLen=Off, PowerGraphUniformSampleSpacing=0, PowerGraphLegendPosition="327;0", CodeGraphLegendShown=0, CodeGraphLegendPosition="205;0"
+OpenWindow="Source Files", DockArea=LEFT, x=0, y=0, w=915, h=376, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=0
+OpenWindow="Watched Data 1", DockArea=LEFT, x=0, y=1, w=915, h=550, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=0
+OpenWindow="Data Sampling", DockArea=LEFT, x=0, y=2, w=915, h=432, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=0, VisibleTab=0, UniformSampleSpacing=0
+OpenWindow="Timeline", DockArea=RIGHT, x=0, y=0, w=836, h=1349, TabPos=1, TopOfStack=1, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=1, DataPaneShown=1, PowerPaneShown=0, CodePaneShown=0, PinCursor="Cursor Movable", TimePerDiv="2 s / Div", TimeStampFormat="Time", DataGraphDrawAsPoints=0, DataGraphLegendShown=1, DataGraphUniformSampleSpacing=0, DataGraphLegendPosition="0;533", DataGraphShowNamesAtCursor=0, PowerGraphDrawAsPoints=0, PowerGraphLegendShown=0, PowerGraphAvgFilterTime=Off, PowerGraphAvgFilterLen=Off, PowerGraphUniformSampleSpacing=0, PowerGraphLegendPosition="616;-75", CodeGraphLegendShown=0, CodeGraphLegendPosition="643;0"
 OpenWindow="Console", DockArea=RIGHT, x=0, y=0, w=836, h=1349, TabPos=0, TopOfStack=0, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=0
 SmartViewPlugin="", Page="", Toolbar="Hidden", Window="SmartView 1"
 TableHeader="Source Files", SortCol="File", SortOrder="DESCENDING", VisibleCols=["File";"Status";"Size";"#Insts";"Path"], ColWidths=[260;100;100;100;990]
-TableHeader="Data Sampling Table", SortCol="None", SortOrder="ASCENDING", VisibleCols=["Index";"Time";" g_motor_position_error[1]";" g_motor_position_error[5]";" g_motor_position_error[4]";" g_motor_position_error[2]";" g_motor_position_error[6]";" g_motor_position_error[3]"], ColWidths=[100;100;100;100;100;100;100;100]
-TableHeader="Data Sampling Setup", SortCol="Expression", SortOrder="ASCENDING", VisibleCols=["Expression";"Type";"Value";"Min";"Max";"Average";"# Changes";"Min. Change";"Max. Change"], ColWidths=[230;100;122;100;122;122;100;149;122]
+TableHeader="Data Sampling Table", SortCol="None", SortOrder="ASCENDING", VisibleCols=["Index";"Time";" g_motor_position_error[1]";" g_motor_position_error[5]";" g_motor_position_error[4]";" g_motor_position_error[2]";" g_motor_position_error[6]";" g_motor_position_error[3]";" g_last_tx_status";" (g_motor_states[0]).mode_state";" 41 943 549";" g_can1_last_ext_id";" hcan1.ErrorCode";" g_rs_motor_enable_count"], ColWidths=[100;100;100;100;100;100;100;100;100;100;100;100;100;100]
+TableHeader="Data Sampling Setup", SortCol="Expression", SortOrder="ASCENDING", VisibleCols=["Expression";"Type";"Value";"Min";"Max";"Average";"# Changes";"Min. Change";"Max. Change"], ColWidths=[230;293;100;140;239;100;100;110;114]
 TableHeader="Power Sampling", SortCol="None", SortOrder="ASCENDING", VisibleCols=["Index";"Time";"Ch 0"], ColWidths=[100;100;100]
 TableHeader="Watched Data 1", SortCol="Expression", SortOrder="ASCENDING", VisibleCols=["Expression";"Value";"Location";"Refresh"], ColWidths=[301;315;261;100]
 TableHeader="RegisterSelectionDialog", SortCol="None", SortOrder="ASCENDING", VisibleCols=[], ColWidths=[]
@@ -38,3 +44,9 @@ WatchedExpression="g_fsi6_vy", RefreshRate=5, Window=Watched Data 1
 WatchedExpression="g_fsi6_wz", RefreshRate=5, Window=Watched Data 1
 WatchedExpression="g_fsi6_rx_irq_count", RefreshRate=5, Window=Watched Data 1
 WatchedExpression="g_rs_motor_state", RefreshRate=5, Window=Watched Data 1
+WatchedExpression="g_last_tx_status", RefreshRate=5, Window=Watched Data 1
+WatchedExpression="g_can1_ext_rx_count", RefreshRate=5, Window=Watched Data 1
+WatchedExpression="g_can1_last_ext_id", RefreshRate=5, Window=Watched Data 1
+WatchedExpression="g_can1_ext_rx_count", RefreshRate=5, Window=Watched Data 1
+WatchedExpression="hcan1.ErrorCode", RefreshRate=5, Window=Watched Data 1
+WatchedExpression="g_rs_motor_enable_count", RefreshRate=5, Window=Watched Data 1

@@ -97,10 +97,44 @@ static void MotorThread_HandleEnable(uint8_t index)
     g_rs_motor_enable_count++;
 }
 
+/* Send a special CAN frame during init (equiv: cansend can0 0400FD01#00C4000000000000) */
+static void WeirdInit(void)
+{
+    if (motor_hcan == 0) {
+        return;
+    }
+
+    CAN_TxHeaderTypeDef header;
+    uint8_t data[8];
+
+    header.ExtId = 0x0400FD01U;
+    header.IDE   = CAN_ID_EXT;
+    header.RTR   = CAN_RTR_DATA;
+    header.DLC   = 8U;
+
+    data[0] = 0x00U;  data[1] = 0xC4U;
+    data[2] = 0x00U;  data[3] = 0x00U;
+    data[4] = 0x00U;  data[5] = 0x00U;
+    data[6] = 0x00U;  data[7] = 0x00U;
+
+    MotorThread_SendFrame(&header, data);
+    HAL_Delay(500);
+
+    header.ExtId = 0x0400FD02U;
+    MotorThread_SendFrame(&header, data);
+    HAL_Delay(500);
+
+    header.ExtId = 0x0400FD03U;
+    MotorThread_SendFrame(&header, data);
+    HAL_Delay(500);
+}
+
 /* 初始化 RS 电机线程、零点配置和共享状态。 */
 void MotorThread_Init(CAN_HandleTypeDef *hcan)
 {
     motor_hcan = hcan;
+    WeirdInit();
+    HAL_Delay(500);
     MotorThread_ApplyStartqOffsets();
     MotorShared_Init(motor_configs, MOTOR_SLOT_COUNT);
 
