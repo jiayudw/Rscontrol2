@@ -25,7 +25,7 @@
 #define FSI6_CH_GRIPPER 5U
 #define FSI6_GRIPPER_MOTOR_INDEX 6U
 #define FSI6_GRIPPER_OPEN_POSITION (FSI6_GRIPPER_CLOSE_POSITION+1.1f)
-#define FSI6_GRIPPER_CLOSE_POSITION (4.21f)
+#define FSI6_GRIPPER_CLOSE_POSITION (0.444f)
 #define FSI6_CHANNEL_MIN 1000.0f
 #define FSI6_CHANNEL_CENTER 1500.0f
 #define FSI6_CHANNEL_MAX 2000.0f
@@ -92,9 +92,9 @@ static void Fsi6_ApplyChannels(void)
     Chassis_SetCommand(g_fsi6_vx, g_fsi6_vy, g_fsi6_wz);
 
     if (lift < FSI6_LIFT_DOWN_THRESHOLD) {
-        g_fsi6_lift_cmd = 1;
-    } else if (lift > FSI6_LIFT_UP_THRESHOLD) {
         g_fsi6_lift_cmd = -1;
+    } else if (lift > FSI6_LIFT_UP_THRESHOLD) {
+        g_fsi6_lift_cmd = 1;
     } else {
         g_fsi6_lift_cmd = 0;
     }

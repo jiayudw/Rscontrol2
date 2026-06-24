@@ -11,7 +11,7 @@
 #define RS_LIFT_TARGET_SPEED_LIMIT_RAD_S 20.0f
 #define RS_LIFT_ZERO_SPEED_RAD_S 0.01f
 #define RS_LIFT_SPEED_KP 0.0f
-#define RS_LIFT_SPEED_KD 0.5f
+#define RS_LIFT_SPEED_KD 0.7f
 #define RS_LIFT_TARGET_TORQUE_NM 0.0f
 
 static CAN_HandleTypeDef *rs_lift_hcan = 0;

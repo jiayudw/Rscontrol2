@@ -98,7 +98,7 @@ byte 17-26  uint8 reserved[10]
 - `lift_cmd`：旧 UART 升降台命令字段，当前已经停用，升降改由 FS-i6/IBUS CH5 控制
 - `reserved[10]`：保留给后续夹爪、升降台位置、模式位、急停位等扩展
 
-FS-i6 辅助三段开关 CH5 低档约 `1000` 时输出 `1` 上升，高档约 `2000` 时输出 `-1` 下降，中档约 `1500` 时输出 `0` 停止/保持。RS 升降电机默认目标速度为 `6.283 rad/s`，定义在 `Core/Src/rs_lift_motor.c` 的 `RS_LIFT_TARGET_SPEED_RAD_S`。FS-i6 帧和升降命令都有 `100 ms` 超时保护。
+FS-i6 辅助三段开关 CH5 低档约 `1000` 时输出 `-1` 下降，高档约 `2000` 时输出 `1` 上升，中档约 `1500` 时输出 `0` 停止/保持。RS 升降电机默认目标速度为 `6.283 rad/s`，定义在 `Core/Src/rs_lift_motor.c` 的 `RS_LIFT_TARGET_SPEED_RAD_S`。FS-i6 帧和升降命令都有 `100 ms` 超时保护。
 
 底盘命令有 `100 ms` 超时保护。当前底盘命令来自 FS-i6/IBUS，需要遥控器持续在线。
 
