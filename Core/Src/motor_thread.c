@@ -21,20 +21,20 @@ static volatile HAL_StatusTypeDef g_last_tx_status = HAL_OK;
 
 /* 每个关节的机械零位对应的电机原始角度，单位 rad。 */
 static const float motor_startq_raw_rad[MOTOR_SLOT_COUNT] = {
-    3.541f,
-    4.447f,
-    3.860f,
-    2.341f,
-    2.960f,
-    2.794f,
+    0.52f,
+    6.15f,
+    0.03f,
+    0.10f,
+    0.10f,
+    0.93f,
     0.0f,
 };
 
 static MotorConfig_t motor_configs[MOTOR_SLOT_COUNT] = {
     /* index, CAN ID, enabled, direction, offset, lower_limit, upper_limit */
     {0U, 0x01U, 1U, 1.0f, 0.0f, RS_MOTOR_P_MIN, RS_MOTOR_P_MAX},
-    {1U, 0x02U, 1U, 1.0f, 0.0f, RS_MOTOR_P_MIN, RS_MOTOR_P_MAX},
-    {2U, 0x03U, 1U, 1.0f, 0.0f, RS_MOTOR_P_MIN, RS_MOTOR_P_MAX},
+    {1U, 0x02U, 1U, -1.0f, 0.0f, RS_MOTOR_P_MIN, RS_MOTOR_P_MAX},
+    {2U, 0x03U, 1U, -1.0f, 0.0f, RS_MOTOR_P_MIN, RS_MOTOR_P_MAX},
     {3U, 0x04U, 1U, 1.0f, 0.0f, RS_MOTOR_P_MIN, RS_MOTOR_P_MAX},
     {4U, 0x05U, 1U, 1.0f, 0.0f, RS_MOTOR_P_MIN, RS_MOTOR_P_MAX},
     {5U, 0x06U, 1U, 1.0f, 0.0f, RS_MOTOR_P_MIN, RS_MOTOR_P_MAX},
@@ -117,12 +117,12 @@ static void WeirdInit(void)
     data[4] = 0x00U;  data[5] = 0x00U;
     data[6] = 0x00U;  data[7] = 0x00U;
 
-    MotorThread_SendFrame(&header, data);
-    HAL_Delay(500);
+    // MotorThread_SendFrame(&header, data);
+    // HAL_Delay(500);
 
-    header.ExtId = 0x0400FD02U;
-    MotorThread_SendFrame(&header, data);
-    HAL_Delay(500);
+    // header.ExtId = 0x0400FD02U;
+    // MotorThread_SendFrame(&header, data);
+    // HAL_Delay(500);
 
     header.ExtId = 0x0400FD03U;
     MotorThread_SendFrame(&header, data);
