@@ -2,7 +2,7 @@
 
 #include "rs_motor.h"
 
-#define RS_LIFT_CAN_ID 0x07U
+#define RS_LIFT_CAN_ID 0x08U
 #define RS_LIFT_DIRECTION 1
 #define RS_LIFT_SEND_TIMEOUT_MS 2U
 #define RS_LIFT_ONLINE_TIMEOUT_MS 100U
@@ -78,7 +78,7 @@ void RsLiftMotor_Init(CAN_HandleTypeDef *hcan)
 {
     rs_lift_hcan = hcan;
 
-    /* 抬升独立挂在 CAN1，默认 ID 0x07，避开机械臂现有 0x01..0x06 和 0x7F。 */
+    /* 抬升独立挂在 CAN1，默认 ID 0x08，避开机械臂现有 0x01..0x07。 */
     rs_lift_motor.id = RS_LIFT_CAN_ID;
     rs_lift_motor.direction = RS_LIFT_DIRECTION;
     rs_lift_motor.enabled = 1U;

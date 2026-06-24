@@ -19,6 +19,11 @@
 #define UART_CONTROL_PAYLOAD_SIZE 1U
 #define UART_POSITION_MOTOR_COUNT 6U
 #define UART_POSITION_FRAME_RESERVED_OFFSET 24U
+#define UART_GRIPPER_MOTOR_INDEX 6U
+#define UART_GRIPPER_OPEN 1U
+#define UART_GRIPPER_CLOSE 0U
+#define UART_GRIPPER_CLOSE_POSITION 0.444f
+#define UART_GRIPPER_OPEN_POSITION (UART_GRIPPER_CLOSE_POSITION + 1.1f)
 #define UART_CHASSIS_SLOT6_OFFSET 0U
 #define UART_CHASSIS_VX_OFFSET 4U
 #define UART_CHASSIS_VY_OFFSET 8U
@@ -139,8 +144,6 @@ static void UartThread_SetPositionCommand(uint8_t index, float position)
 /* 解析 0xAA 数据帧，并更新 ID0-ID5 机械臂位置命令。 */
 static void UartThread_ParsePositionFrame(const uint8_t payload[UART_COMMAND_FRAME_PAYLOAD_SIZE])
 {
-    (void)payload[UART_POSITION_FRAME_RESERVED_OFFSET];
-
     /* 0xAA 数据帧：6 个关节位置，全部是 little-endian float32，后 3 字节保留。 */
     for (uint8_t i = 0U; i < UART_POSITION_MOTOR_COUNT; ++i) {
         float position = UartThread_ReadLeFloat(&payload[i * 4U]);
@@ -152,6 +155,27 @@ static void UartThread_ParsePositionFrame(const uint8_t payload[UART_COMMAND_FRA
     for (uint8_t i = 0U; i < UART_POSITION_MOTOR_COUNT; ++i) {
         float position = UartThread_ReadLeFloat(&payload[i * 4U]);
         UartThread_SetPositionCommand(i, position);
+    }
+
+    /* payload[25] 控制夹爪：1 = 开，0 = 关 */
+    if (payload[25] == UART_GRIPPER_OPEN) {
+        MotorShared_SetCommand(
+            UART_GRIPPER_MOTOR_INDEX,
+            UART_GRIPPER_OPEN_POSITION,
+            0.0f,
+            g_motor_command_kp[UART_GRIPPER_MOTOR_INDEX],
+            g_motor_command_kd[UART_GRIPPER_MOTOR_INDEX],
+            0.0f
+        );
+    } else if (payload[25] == UART_GRIPPER_CLOSE) {
+        MotorShared_SetCommand(
+            UART_GRIPPER_MOTOR_INDEX,
+            UART_GRIPPER_CLOSE_POSITION,
+            0.0f,
+            g_motor_command_kp[UART_GRIPPER_MOTOR_INDEX],
+            g_motor_command_kd[UART_GRIPPER_MOTOR_INDEX],
+            0.0f
+        );
     }
 }
 
