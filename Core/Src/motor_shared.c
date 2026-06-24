@@ -6,7 +6,7 @@ volatile float g_motor_zero_offsets[MOTOR_SLOT_COUNT];
 volatile float g_motor_position_error[MOTOR_SLOT_COUNT];
 volatile float g_motor_command_kp[MOTOR_SLOT_COUNT] = {
     5.0f,
-    5.0f,
+    10.0f,
     70.0f,
     3.0f,
     3.0f,
@@ -15,7 +15,7 @@ volatile float g_motor_command_kp[MOTOR_SLOT_COUNT] = {
 };
 volatile float g_motor_command_kd[MOTOR_SLOT_COUNT] = {
     0.3f,
-    0.3f,
+    1.5f,
     2.0f,
     0.3f,
     0.3f,
