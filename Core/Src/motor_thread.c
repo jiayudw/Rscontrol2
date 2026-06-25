@@ -25,7 +25,7 @@ static const float motor_startq_raw_rad[MOTOR_SLOT_COUNT] = {
     6.15f,
     0.03f,
     0.10f,
-    0.10f,
+    6.34f,
     0.93f,
     0.0f,
 };

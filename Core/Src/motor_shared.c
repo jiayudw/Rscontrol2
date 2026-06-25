@@ -6,21 +6,21 @@ volatile float g_motor_zero_offsets[MOTOR_SLOT_COUNT];
 volatile float g_motor_position_error[MOTOR_SLOT_COUNT];
 volatile float g_motor_command_kp[MOTOR_SLOT_COUNT] = {
     5.0f,
+    100.0f,
+    80.0f,
+    20.0f,
+    50.0f,
     10.0f,
-    70.0f,
-    3.0f,
-    3.0f,
-    3.0f,
-    1.0f,
+    10.0f,
 };
 volatile float g_motor_command_kd[MOTOR_SLOT_COUNT] = {
     0.3f,
-    1.5f,
-    2.0f,
-    0.3f,
-    0.3f,
-    0.3f,
-    0.1f,
+    2.8f,
+    2.5f,
+    1.3f,
+    2.5f,
+    1.0f,
+    1.0f,
 };
 volatile uint8_t g_motor_calibration_mode = 0U;
 

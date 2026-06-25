@@ -22,8 +22,8 @@
 #define UART_GRIPPER_MOTOR_INDEX 6U
 #define UART_GRIPPER_OPEN 1U
 #define UART_GRIPPER_CLOSE 0U
-#define UART_GRIPPER_CLOSE_POSITION 1.50f
-#define UART_GRIPPER_OPEN_POSITION (3.35f)
+#define UART_GRIPPER_CLOSE_POSITION 2.0f
+#define UART_GRIPPER_OPEN_POSITION (4.1f)
 #define UART_CHASSIS_SLOT6_OFFSET 0U
 #define UART_CHASSIS_VX_OFFSET 4U
 #define UART_CHASSIS_VY_OFFSET 8U
@@ -157,8 +157,8 @@ static void UartThread_ParsePositionFrame(const uint8_t payload[UART_COMMAND_FRA
         UartThread_SetPositionCommand(i, position);
     }
 
-    /* payload[25] 控制夹爪：1 = 开，0 = 关 */
-    if (payload[25] == UART_GRIPPER_OPEN) {
+    /* payload[24] 控制夹爪：1 = 开，0 = 关 */
+    if (payload[24] == UART_GRIPPER_OPEN) {
         MotorShared_SetCommand(
             UART_GRIPPER_MOTOR_INDEX,
             UART_GRIPPER_OPEN_POSITION,
@@ -167,7 +167,7 @@ static void UartThread_ParsePositionFrame(const uint8_t payload[UART_COMMAND_FRA
             g_motor_command_kd[UART_GRIPPER_MOTOR_INDEX],
             0.0f
         );
-    } else if (payload[25] == UART_GRIPPER_CLOSE) {
+    } else if (payload[24] == UART_GRIPPER_CLOSE) {
         MotorShared_SetCommand(
             UART_GRIPPER_MOTOR_INDEX,
             UART_GRIPPER_CLOSE_POSITION,
